@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>流し込み変換 — Flow Henkan</title>
+<style>
+  /* ---- デザイントークン ----
+     コンセプト: 「夜の机に灯した手元のランプ」。
+     入力はラフな下書き面、結果はきれいに整った紙。その対比がこのツールの主役。 */
+  :root {
+    --bg: #ECEAF3;          /* 薄い藤鼠の背景 */
+    --surface: #FCFBFE;     /* カード面（ほぼ白） */
+    --surface-draft: #F4F2FA; /* 下書き面（ほんのり） */
+    --ink: #25232E;         /* 本文の墨色 */
+    --muted: #807C90;       /* 補助テキスト */
+    --line: #DEDAEA;        /* 罫線 */
+    --accent: #5B4FE0;      /* 変換のアクション（電気的な藍） */
+    --accent-soft: #ECEAFB;
+    --success: #2FA39A;     /* コピー成功（青緑） */
+    --danger: #C9483D;      /* エラー */
+    --radius: 14px;
+    --mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+    --jp: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic",
+          "Noto Sans JP", "Meiryo", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--jp);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 20px 64px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ---- ヘッダー ---- */
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .title .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+    transform: translateY(-1px);
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  .gear {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--jp);
+    transition: border-color .15s, background .15s;
+  }
+  .gear:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .gear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- 入力（下書き面） ---- */
+  .field-label {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 7px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .kbd {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 2px 6px;
+    color: var(--muted);
+  }
+  textarea#input {
+    width: 100%;
+    min-height: 190px;
+    resize: vertical;
+    background: var(--surface-draft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    font-family: var(--jp);
+    font-size: 16px;
+    line-height: 1.85;
+    color: var(--ink);
+    /* 下書き感を出す薄い罫線 */
+    background-image: linear-gradient(var(--line) 1px, transparent 1px);
+    background-size: 100% 1.85em;
+    background-position: 0 17px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  textarea#input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* ---- 操作行 ---- */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--jp);
+    letter-spacing: 0.02em;
+    transition: filter .15s, opacity .15s;
+  }
+  button.primary:hover { filter: brightness(1.07); }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.primary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .status {
+    font-size: 12.5px;
+    color: var(--muted);
+    min-height: 1em;
+  }
+  .status.err { color: var(--danger); }
+
+  /* ---- 結果（清書面） ---- */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: 0 1px 2px rgba(40,35,60,.04);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity .3s ease, transform .3s ease;
+  }
+  .result-card.show { opacity: 1; transform: none; }
+  .result-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .result-head .lbl { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+  .copy-btn {
+    border: 1px solid var(--line);
+    background: transparent;
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: var(--jp);
+    transition: border-color .15s, color .15s;
+  }
+  .copy-btn:hover { border-color: var(--accent); }
+  .copy-btn.done { color: var(--success); border-color: var(--success); }
+  #output {
+    font-size: 16.5px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .meta {
+    margin-top: 12px;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* ローディングの脈動 */
+  .result-card.loading #output { color: var(--muted); }
+  .pulse::after {
+    content: "";
+    display: inline-block;
+    width: 8px; height: 8px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:.25;} 50%{opacity:1;} }
+
+  /* ---- 設定ダイアログ ---- */
+  dialog {
+    border: none;
+    border-radius: 16px;
+    padding: 0;
+    max-width: 520px;
+    width: calc(100% - 32px);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 24px 64px rgba(40,35,60,.28);
+  }
+  dialog::backdrop { background: rgba(30,26,45,.4); backdrop-filter: blur(2px); }
+  .dlg-inner { padding: 24px 24px 20px; }
+  .dlg-inner h2 { margin: 0 0 4px; font-size: 16px; }
+  .dlg-inner .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; line-height: 1.6; }
+  .form-row { margin-bottom: 16px; }
+  .form-row label { display: block; font-size: 12.5px; margin-bottom: 6px; font-weight: 600; }
+  .form-row .desc { font-size: 11.5px; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }
+  .form-row input, .form-row textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 11px;
+    font-size: 13.5px;
+    font-family: var(--jp);
+    background: var(--surface-draft);
+    color: var(--ink);
+  }
+  .form-row input:focus, .form-row textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .form-row textarea { min-height: 84px; resize: vertical; line-height: 1.6; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+  .btn-ghost {
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 9px; padding: 9px 16px; font-size: 13px; cursor: pointer; font-family: var(--jp);
+  }
+  .btn-ghost:hover { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, .result-card { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="title"><span class="dot"></span>流し込み変換</div>
+      <div class="subtitle">変換もタイポも気にせず、思考だけを流し込む</div>
+    </div>
+    <button class="gear" id="openSettings" aria-label="設定を開く">⚙ 設定</button>
+  </header>
+
+  <section>
+    <div class="field-label">
+      <span>下書き — 変換前のまま打ち込んでOK</span>
+      <span><span class="kbd" id="shortcutHint">Ctrl+Enter</span> で変換</span>
+    </div>
+    <textarea id="input" placeholder="ここに、変換やミスを気にせず思考をそのまま打ち込む。&#10;打ち終わったら Ctrl+Enter（Mac は Cmd+Enter）。" autofocus></textarea>
+  </section>
+
+  <div class="actions">
+    <button class="primary" id="convertBtn">変換する</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <section class="result-card" id="resultCard" aria-live="polite">
+    <div class="result-head">
+      <span class="lbl">変換結果</span>
+      <button class="copy-btn" id="copyBtn">コピー</button>
+    </div>
+    <div id="output"></div>
+    <div class="meta" id="meta"></div>
+  </section>
+</div>
+
+<!-- 設定ダイアログ -->
+<dialog id="settingsDialog">
+  <div class="dlg-inner">
+    <h2>設定</h2>
+    <p class="hint">OpenRouter の API キーと使用モデルを設定します。値はこのブラウザの localStorage に保存され、外部には送信されません（変換時に OpenRouter へ送られるだけ）。</p>
+
+    <div class="form-row">
+      <label for="apiKey">OpenRouter API キー</label>
+      <input type="password" id="apiKey" placeholder="sk-or-v1-..." autocomplete="off" />
+      <p class="desc">openrouter.ai のダッシュボードで発行したキー。</p>
+    </div>
+
+    <div class="form-row">
+      <label for="model">モデル（自由入力）</label>
+      <input type="text" id="model" list="modelList" placeholder="google/gemini-2.5-flash" />
+      <datalist id="modelList">
+        <option value="google/gemini-2.5-flash"></option>
+        <option value="google/gemini-2.5-flash-lite-preview-06-17"></option>
+        <option value="openai/gpt-4.1-mini"></option>
+        <option value="openai/gpt-4o-mini"></option>
+        <option value="openai/gpt-4.1"></option>
+        <option value="anthropic/claude-sonnet-4"></option>
+      </datalist>
+      <p class="desc">候補はあくまで例。OpenRouter で使えるモデル名なら何でも入力可。</p>
+    </div>
+
+    <div class="form-row">
+      <label for="prompt">システムプロンプト</label>
+      <textarea id="prompt"></textarea>
+      <p class="desc">変換の指示。基本はこのままでOK。挙動を調整したくなったら編集する。</p>
+    </div>
+
+    <div class="dlg-actions">
+      <button class="btn-ghost" id="cancelSettings" type="button">キャンセル</button>
+      <button class="primary" id="saveSettings" type="button">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+// ---- localStorage のキー ----
+const LS = {
+  apiKey: "fh_api_key",
+  model:  "fh_model",
+  prompt: "fh_prompt",
+};
+
+// ---- 既定値 ----
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
+const DEFAULT_PROMPT =
+  "ユーザーから、日本語の変換・修正前のキーボード入力値が渡されます。" +
+  "タイポ・文脈を考慮し、正しい日本語テキストに変換してください。" +
+  "変換されたテキストのみ出力してください。";
+
+// ---- 要素参照 ----
+const $ = (id) => document.getElementById(id);
+const input      = $("input");
+const convertBtn = $("convertBtn");
+const statusEl   = $("status");
+const resultCard = $("resultCard");
+const output     = $("output");
+const meta       = $("meta");
+const copyBtn    = $("copyBtn");
+const dialog     = $("settingsDialog");
+
+// Mac かどうかでショートカット表記を出し分け
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || /Mac/.test(navigator.userAgent);
+$("shortcutHint").textContent = isMac ? "⌘+Enter" : "Ctrl+Enter";
+
+// ---- 設定の読み書き ----
+function getSettings() {
+  return {
+    apiKey: localStorage.getItem(LS.apiKey) || "",
+    model:  localStorage.getItem(LS.model)  || DEFAULT_MODEL,
+    prompt: localStorage.getItem(LS.prompt) || DEFAULT_PROMPT,
+  };
+}
+
+function openSettings() {
+  const s = getSettings();
+  $("apiKey").value = s.apiKey;
+  $("model").value  = s.model;
+  $("prompt").value = s.prompt;
+  dialog.showModal();
+}
+
+$("openSettings").addEventListener("click", openSettings);
+$("cancelSettings").addEventListener("click", () => dialog.close());
+
+$("saveSettings").addEventListener("click", () => {
+  localStorage.setItem(LS.apiKey, $("apiKey").value.trim());
+  localStorage.setItem(LS.model,  ($("model").value.trim() || DEFAULT_MODEL));
+  localStorage.setItem(LS.prompt, ($("prompt").value.trim() || DEFAULT_PROMPT));
+  dialog.close();
+  setStatus("設定を保存した。", false);
+});
+
+// ---- ステータス表示 ----
+function setStatus(msg, isError) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("err", !!isError);
+}
+
+// ---- 変換本体 ----
+let busy = false;
+
+async function convert() {
+  if (busy) return;
+  const text = input.value.trim();
+  if (!text) { setStatus("下書きが空っぽ。", false); return; }
+
+  const s = getSettings();
+  if (!s.apiKey) {
+    setStatus("API キーが未設定。右上の「設定」から入れてね。", true);
+    openSettings();
+    return;
+  }
+
+  busy = true;
+  convertBtn.disabled = true;
+  setStatus("");
+  resultCard.classList.add("show", "loading");
+  output.innerHTML = '<span class="pulse">変換中</span>';
+  meta.textContent = "";
+  copyBtn.classList.remove("done");
+  copyBtn.textContent = "コピー";
+
+  const started = performance.now();
+
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + s.apiKey,
+        "Content-Type": "application/json",
+        // 任意ヘッダ（OpenRouter のダッシュボード表示用。なくても動く）
+        "X-Title": "Flow Henkan",
+      },
+      body: JSON.stringify({
+        model: s.model,
+        messages: [
+          { role: "system", content: s.prompt },
+          { role: "user",   content: text },
+        ],
+        temperature: 0.2,   // 忠実な変換が目的なので低め
+        max_tokens: 4000,
+        stream: false,
+      }),
+    });
+
+    if (!res.ok) {
+      let detail = "";
+      try { detail = JSON.stringify((await res.json()).error || {}); } catch (_) {}
+      throw new Error("API エラー " + res.status + (detail ? " — " + detail : ""));
+    }
+
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error("変換結果が空で返ってきた。モデル名やプロンプトを確認してみて。");
+
+    resultCard.classList.remove("loading");
+    output.textContent = content.trim();
+
+    // メタ情報（トークン数・所要時間）
+    const ms = Math.round(performance.now() - started);
+    const u = data.usage || {};
+    const tok = (u.total_tokens != null)
+      ? `${u.prompt_tokens ?? "?"} in / ${u.completion_tokens ?? "?"} out tokens · `
+      : "";
+    meta.textContent = `${tok}${(ms/1000).toFixed(1)}s · ${data.model || s.model}`;
+    setStatus("");
+  } catch (err) {
+    resultCard.classList.remove("loading");
+    output.textContent = "";
+    setStatus(String(err.message || err), true);
+  } finally {
+    busy = false;
+    convertBtn.disabled = false;
+  }
+}
+
+convertBtn.addEventListener("click", convert);
+
+// ---- ショートカット（IME 変換確定中の Enter は無視する） ----
+input.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !e.isComposing) {
+    e.preventDefault();
+    convert();
+  }
+});
+
+// ---- コピー ----
+copyBtn.addEventListener("click", async () => {
+  const t = output.textContent;
+  if (!t) return;
+  try {
+    await navigator.clipboard.writeText(t);
+    copyBtn.textContent = "コピーした ✓";
+    copyBtn.classList.add("done");
+    setTimeout(() => {
+      copyBtn.textContent = "コピー";
+      copyBtn.classList.remove("done");
+    }, 1600);
+  } catch (_) {
+    setStatus("コピーに失敗。手動で選択してね。", true);
+  }
+});
+
+// ---- 初回起動: キー未設定なら設定を促す ----
+window.addEventListener("DOMContentLoaded", () => {
+  if (!getSettings().apiKey) {
+    setStatus("まずは右上「設定」から API キーを入れてね。", false);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>スキャン式かな入力 v2 ドラム＝ボタン版</title>
+<style>
+  :root{
+    --slate:#15181e; --panel:#1e232c; --panel2:#262c37;
+    --paper:#f3eee3; --ink:#2a2620; --inkdim:#8b8578; --line:#cdc6b6;
+    --band:#ffc24a; --lock:#10b3a3; --hot:#ff7a4d;
+    --txt:#e9e4d8; --txtdim:#9aa1ad;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--slate);}
+  body{font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif; color:var(--txt); min-height:100dvh; display:flex; justify-content:center; user-select:none; -webkit-user-select:none;}
+  .app{width:100%; max-width:440px; padding:14px 14px 22px; display:flex; flex-direction:column; gap:12px;}
+
+  header{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  header h1{font-size:15px; letter-spacing:.12em; font-weight:700; margin:0;}
+  header .sub{font-size:11px; letter-spacing:.04em; color:var(--txtdim);}
+  .verbadge{display:inline-block; font-size:10px; letter-spacing:.06em; color:#04302b; background:var(--lock); padding:2px 7px; border-radius:6px; font-weight:700;}
+
+  .out-wrap{background:var(--panel); border-radius:14px; padding:12px 14px; border:1px solid #000;}
+  .out-label{font-size:10px; letter-spacing:.18em; color:var(--txtdim); margin-bottom:6px;}
+  .out{min-height:46px; font-size:24px; line-height:1.5; color:var(--paper); word-break:break-all; white-space:pre-wrap;}
+  .caret{display:inline-block; width:2px; height:1.05em; background:var(--band); vertical-align:-3px; animation:blink 1s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  .stage{display:flex; gap:8px; align-items:center; font-size:12px;}
+  .pill{flex:1; text-align:center; padding:7px 4px; border-radius:10px; background:var(--panel2); color:var(--txtdim); letter-spacing:.04em; border:1px solid #0006; transition:.18s;}
+  .pill.on{background:var(--band); color:#3a2c00; font-weight:700; border-color:#0000;}
+  .pill .k{font-size:10px; display:block; opacity:.85; letter-spacing:.08em;}
+
+  .chart-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; background:var(--paper); padding:8px 8px 10px; border:1px solid #000; touch-action:pan-y;}
+  .chart{display:grid; grid-auto-flow:column; gap:4px; width:max-content; margin:0 auto;}
+  .col{display:grid; grid-template-rows:repeat(5,1fr); gap:4px;}
+  .cell{width:30px; height:34px; display:flex; align-items:center; justify-content:center; font-size:19px; color:var(--ink); background:#fbf8f1; border-radius:7px; border:1px solid var(--line); transition:transform .1s, background .12s, color .12s;}
+  .cell.mod{color:var(--hot); font-weight:700;} .cell.sym{color:#6f675a;}
+  .col.activecol .cell{background:var(--band); border-color:#e0a400; color:#3a2c00;}
+  .col.activecol .cell.mod{color:#a8410f;}
+  .col.pickcol .cell{background:#fff4d6; border-color:#ead08a;}
+  .col.pickcol .cell.cur{background:var(--lock); border-color:#0a8d80; color:#eafffb; transform:scale(1.12); box-shadow:0 3px 10px #10b3a355;}
+  .col.pickcol .cell.cur.mod{color:#fff;}
+
+  /* コントロール：ドラムだけ */
+  .dialunit{display:flex; flex-direction:column; align-items:center; gap:8px;}
+  .dialrow{display:flex; align-items:center; gap:14px;}
+  .nudge{width:40px; height:64px; border:none; border-radius:11px; background:var(--panel2); color:var(--txtdim); font-size:15px; cursor:pointer; border:1px solid #0007;}
+  .nudge:active{filter:brightness(1.2);}
+  .dial{position:relative; width:140px; height:168px; border-radius:20px; overflow:hidden; touch-action:none; cursor:pointer;
+    background:linear-gradient(90deg,#0d1015,#2b323e 14%,#3a4250 50%,#2b323e 86%,#0d1015);
+    border:1px solid #000; box-shadow:inset 0 0 0 1px #ffffff0d, inset 0 9px 16px #0008, inset 0 -9px 16px #0008;
+    transition:transform .06s, box-shadow .1s;}
+  .dial.pressing{transform:scale(.985); box-shadow:inset 0 0 0 1px #ffffff14, inset 0 0 26px #000a;}
+  .dial .strip{position:absolute; left:0; right:0; top:0; will-change:transform;}
+  .dial .item{height:56px; display:flex; align-items:center; justify-content:center; font-size:28px; color:#c4ccd8; text-shadow:0 1px 1px #0006;}
+  .dial .item.mod{color:#ffb59a;} .dial .item.sym{color:#9fb4c6;}
+  .dial .center{position:absolute; left:8px; right:8px; top:56px; height:56px; border-top:2px solid var(--band); border-bottom:2px solid var(--band); background:#ffc24a16; pointer-events:none; border-radius:5px; transition:background .12s;}
+  .dial.tapflash .center{background:#10b3a338;}
+  .dial .fade{position:absolute; inset:0; pointer-events:none; background:linear-gradient(#161a20 0%,#161a2000 26%,#161a2000 74%,#161a20 100%);}
+  .dial .knurl{position:absolute; inset:0; pointer-events:none; opacity:.10; background:repeating-linear-gradient(#fff 0 1px,#0000 1px 5px);}
+  .dial .pushtag{position:absolute; left:0; right:0; bottom:7px; text-align:center; font-size:9px; letter-spacing:.22em; color:#ffffff66; pointer-events:none;}
+  .dialcap{font-size:11px; line-height:1.6; color:var(--txtdim); text-align:center;}
+  .dialcap b{color:var(--txt);} .dialcap .key{color:var(--band);}
+
+  button.act{font-family:inherit; border:none; border-radius:13px; color:var(--txt); background:var(--panel2); cursor:pointer; border:1px solid #0007; transition:transform .06s, filter .1s;}
+  button.act:active{transform:translateY(1px) scale(.99); filter:brightness(1.15);}
+
+  .metrics{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+  .m{background:var(--panel); border-radius:11px; padding:9px 4px; text-align:center; border:1px solid #0006;}
+  .m .v{font-size:19px; font-weight:700; color:var(--paper);}
+  .m .l{font-size:9.5px; letter-spacing:.06em; color:var(--txtdim); margin-top:2px;}
+  .m.hl .v{color:var(--band);}
+
+  .row2{display:flex; gap:10px;}
+  .row2 button{flex:1; height:42px; font-size:13px; letter-spacing:.06em;}
+  .help{font-size:11px; line-height:1.7; color:var(--txtdim); background:var(--panel); border-radius:12px; padding:11px 13px; border:1px solid #0006;}
+  .help b{color:var(--txt);} .help .key{color:var(--band);}
+  .flash{position:fixed; inset:0; pointer-events:none; background:var(--hot); opacity:0;}
+  .flash.go{animation:fl .25s ease-out;}
+  @keyframes fl{0%{opacity:.16;}100%{opacity:0;}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>スキャン式かな入力</h1>
+    <span class="sub"><span class="verbadge">v2</span> ドラム＝ボタン版</span>
+  </header>
+
+  <div class="out-wrap">
+    <div class="out-label">にゅうりょく</div>
+    <div class="out" id="out"><span class="caret"></span></div>
+  </div>
+
+  <div class="stage">
+    <div class="pill on" id="pillC"><span class="k">転がして列えらび</span>子音をえらぶ</div>
+    <div class="pill" id="pillV"><span class="k">転がして段えらび</span>母音をえらぶ</div>
+  </div>
+
+  <div class="chart-wrap" id="chartWrap">
+    <div class="chart" id="chart"></div>
+  </div>
+
+  <div class="dialunit">
+    <div class="dialrow">
+      <button class="nudge" id="prev">▲</button>
+      <div class="dial" id="dial">
+        <div class="strip" id="strip"></div>
+        <div class="knurl"></div>
+        <div class="fade"></div>
+        <div class="center"></div>
+        <div class="pushtag">PUSH</div>
+      </div>
+      <button class="nudge" id="next">▼</button>
+    </div>
+    <div class="dialcap"><b>転がす</b>＝走査　／　<b>押す</b>＝<span class="key">確定・つぎへ</span>　／　<b>2回押す</b>＝取消・1字けす</div>
+  </div>
+
+  <div class="metrics">
+    <div class="m"><div class="v" id="mChars">0</div><div class="l">もじ</div></div>
+    <div class="m"><div class="v" id="mScroll">0</div><div class="l">スクロール</div></div>
+    <div class="m"><div class="v" id="mTap">0</div><div class="l">押した計</div></div>
+    <div class="m hl"><div class="v" id="mAvg">0.0</div><div class="l">操作／字</div></div>
+  </div>
+
+  <div class="row2">
+    <button class="act" id="reset">ぜんぶリセット</button>
+    <button class="act" id="clearText">文字だけ消す</button>
+  </div>
+
+  <div class="help">
+    <b>このバージョン：</b>ドラムから指を離さずに、上下に<b>転がして</b>走査し、その場で<b>押して</b>確定できます。タップ用の別ボタンはありません。<br>
+    <b>使い方：</b>転がして<span class="key">子音の列</span>→押す→転がして<span class="key">母音の段</span>→押すで確定。端で止まります（ループしません）。<br>
+    <b>余りマス：</b><span class="key">゛ ゜</span>は直前の字を濁点化（か→が／は→ぱ）。ほか <span class="key">ゃ ゅ ょ っ ん ー 、 。 ␣</span>。<br>
+    <b>2回押す：</b>子音えらび中＝1字消す／母音えらび中＝子音へ戻る。<br>
+    <b>PCでも：</b>↑↓＝走査、Enter／Space＝押す、Backspace＝2回押す相当、ホイールでも回せます。
+  </div>
+</div>
+<div class="flash" id="flash"></div>
+
+<script>
+(function(){
+  const K=(d)=>({d,t:'kana'}); const S=(d,v)=>({d,t:'sym',v:(v??d)}); const MOD=(d,k)=>({d,t:k});
+  const COLS=[
+    {h:'あ',cells:[K('あ'),K('い'),K('う'),K('え'),K('お')]},
+    {h:'か',cells:[K('か'),K('き'),K('く'),K('け'),K('こ')]},
+    {h:'さ',cells:[K('さ'),K('し'),K('す'),K('せ'),K('そ')]},
+    {h:'た',cells:[K('た'),K('ち'),K('つ'),K('て'),K('と')]},
+    {h:'な',cells:[K('な'),K('に'),K('ぬ'),K('ね'),K('の')]},
+    {h:'は',cells:[K('は'),K('ひ'),K('ふ'),K('へ'),K('ほ')]},
+    {h:'ま',cells:[K('ま'),K('み'),K('む'),K('め'),K('も')]},
+    {h:'や',cells:[K('や'),S('ゃ'),K('ゆ'),S('ょ'),K('よ')]},
+    {h:'ら',cells:[K('ら'),K('り'),K('る'),K('れ'),K('ろ')]},
+    {h:'わ',cells:[K('わ'),S('ん'),S('っ'),S('ー'),K('を')]},
+    {h:'゛',cells:[MOD('゛','mod'),MOD('゜','hmod'),S('ゅ'),S('、'),S('。')]},
+    {h:'記',cells:[S('␣',' '),S('・'),S('？'),S('「'),S('」')]}
+  ];
+  const NROWS=5, NCOLS=COLS.length;
+  const DAKU={か:'が',き:'ぎ',く:'ぐ',け:'げ',こ:'ご',さ:'ざ',し:'じ',す:'ず',せ:'ぜ',そ:'ぞ',た:'だ',ち:'ぢ',つ:'づ',て:'で',と:'ど',は:'ば',ひ:'び',ふ:'ぶ',へ:'べ',ほ:'ぼ',う:'ゔ'};
+  const HANDAKU={は:'ぱ',ひ:'ぴ',ふ:'ぷ',へ:'ぺ',ほ:'ぽ'};
+
+  let stage=0, col=0, row=0, text='';
+  let mScroll=0, mTap=0, mDtap=0, mChars=0;
+
+  const chart=document.getElementById('chart'), out=document.getElementById('out');
+  const pillC=document.getElementById('pillC'), pillV=document.getElementById('pillV');
+  const flash=document.getElementById('flash'), strip=document.getElementById('strip'), dial=document.getElementById('dial');
+  const cellEls=[];
+  COLS.forEach((c,ci)=>{
+    const colEl=document.createElement('div'); colEl.className='col'; const arr=[];
+    c.cells.forEach(cell=>{ const el=document.createElement('div');
+      el.className='cell'+(cell.t==='mod'||cell.t==='hmod'?' mod':'')+(cell.t==='sym'?' sym':'');
+      el.textContent=cell.d; colEl.appendChild(el); arr.push(el); });
+    chart.appendChild(colEl); cellEls.push(arr);
+  });
+  const colEls=[...chart.children];
+
+  const ITEM_H=56, BASE=56;
+  function curList(){ return stage===0?COLS.map(c=>c.h):COLS[col].cells.map(c=>c.d); }
+  function curTypes(){ return stage===0?COLS.map(()=>'kana'):COLS[col].cells.map(c=>c.t); }
+  function curIndex(){ return stage===0?col:row; }
+  function maxIndex(){ return (stage===0?NCOLS:NROWS)-1; }
+  function setIndex(i){ i=Math.max(0,Math.min(maxIndex(),i)); if(stage===0)col=i; else row=i; }
+
+  function buildStrip(){
+    const list=curList(), types=curTypes(); strip.innerHTML='';
+    list.forEach((d,i)=>{ const el=document.createElement('div');
+      el.className='item'+(types[i]==='mod'||types[i]==='hmod'?' mod':'')+(types[i]==='sym'?' sym':'');
+      el.textContent=d; strip.appendChild(el); });
+  }
+  function placeStrip(extra=0, animate=false){
+    strip.style.transition = animate?'transform .16s cubic-bezier(.2,.7,.3,1)':'none';
+    strip.style.transform='translateY('+(BASE-curIndex()*ITEM_H+extra)+'px)';
+  }
+  function render(){
+    colEls.forEach((cEl,ci)=>{
+      cEl.classList.toggle('activecol', stage===0&&ci===col);
+      cEl.classList.toggle('pickcol', stage===1&&ci===col);
+      cellEls[ci].forEach((el,ri)=>{ el.classList.toggle('cur', stage===1&&ci===col&&ri===row); });
+    });
+    pillC.classList.toggle('on', stage===0); pillV.classList.toggle('on', stage===1);
+    out.innerHTML=escapeHtml(text)+'<span class="caret"></span>';
+    document.getElementById('mChars').textContent=mChars;
+    document.getElementById('mScroll').textContent=mScroll;
+    document.getElementById('mTap').textContent=mTap+mDtap;
+    const tot=mScroll+mTap+mDtap;
+    document.getElementById('mAvg').textContent=mChars?(tot/mChars).toFixed(1):'0.0';
+    const act=colEls[col]; if(act&&act.scrollIntoView) act.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
+  }
+  function escapeHtml(s){return s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+
+  function dialMove(delta){
+    const before=curIndex(); setIndex(before+delta);
+    if(curIndex()!==before){ mScroll++; buzz(); placeStrip(0,true); render(); }
+  }
+  function tap(){
+    mTap++; tapflash();
+    if(stage===0){ stage=1; row=0; buildStrip(); placeStrip(0,false); }
+    else{ commit(); stage=0; buildStrip(); placeStrip(0,false); }
+    render();
+  }
+  function dtap(){
+    mDtap++;
+    if(stage===0){ if(text.length){ text=text.slice(0,-1); mChars=Math.max(0,mChars-1);} }
+    else{ stage=0; buildStrip(); placeStrip(0,false); }
+    render();
+  }
+  function commit(){
+    const cell=COLS[col].cells[row];
+    if(cell.t==='mod'||cell.t==='hmod'){
+      const map=cell.t==='mod'?DAKU:HANDAKU; const last=text.slice(-1);
+      if(map[last]){ text=text.slice(0,-1)+map[last]; pop(); } return;
+    }
+    text+=(cell.t==='sym'?cell.v:cell.d); mChars++; pop();
+  }
+  function pop(){ flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go'); }
+  function tapflash(){ dial.classList.remove('tapflash'); void dial.offsetWidth; dial.classList.add('tapflash'); setTimeout(()=>dial.classList.remove('tapflash'),130); }
+  function buzz(){ try{navigator.vibrate&&navigator.vibrate(6);}catch(e){} }
+
+  // ── ドラム：転がす(走査) ＋ 押す(タップ) ＋ 2回押す(ダブルタップ) ──
+  const TAP_MOVE=10, DT_WINDOW=280;
+  let dragging=false, startY=0, idx0=0, moved=false, pendingTap=null;
+
+  function clampExtra(extra){
+    const minE=-(maxIndex()-idx0)*ITEM_H, maxE=idx0*ITEM_H;
+    return Math.max(minE,Math.min(maxE,extra));
+  }
+  dial.addEventListener('pointerdown',e=>{
+    dragging=true; startY=e.clientY; idx0=curIndex(); moved=false;
+    dial.classList.add('pressing'); dial.setPointerCapture(e.pointerId);
+  });
+  dial.addEventListener('pointermove',e=>{
+    if(!dragging) return;
+    if(Math.abs(e.clientY-startY)>TAP_MOVE) moved=true;
+    const dy=clampExtra(e.clientY-startY);
+    const provis=Math.max(0,Math.min(maxIndex(),Math.round(idx0-dy/ITEM_H)));
+    if(provis!==curIndex()){ setIndex(provis); mScroll++; buzz(); render(); }
+    placeStrip(dy+(idx0-curIndex())*ITEM_H,false);
+  });
+  function endDrag(){
+    if(!dragging) return; dragging=false; dial.classList.remove('pressing');
+    if(moved){ placeStrip(0,true); }     // 動いた＝走査だった
+    else { handleDialTap(); }            // 動いてない＝押した
+  }
+  dial.addEventListener('pointerup',endDrag);
+  dial.addEventListener('pointercancel',()=>{ dragging=false; dial.classList.remove('pressing'); });
+  dial.addEventListener('wheel',e=>{ e.preventDefault(); dialMove(e.deltaY>0?1:-1); },{passive:false});
+
+  function handleDialTap(){
+    if(pendingTap){ clearTimeout(pendingTap); pendingTap=null; dtap(); return; } // 2回目→ダブル
+    pendingTap=setTimeout(()=>{ pendingTap=null; tap(); }, DT_WINDOW);            // 1回目→待って単発
+  }
+
+  document.getElementById('prev').onclick=()=>dialMove(-1);
+  document.getElementById('next').onclick=()=>dialMove(1);
+  document.getElementById('reset').onclick=()=>{ text=''; stage=0; col=0; row=0; mScroll=mTap=mDtap=mChars=0; buildStrip(); placeStrip(0,false); render(); };
+  document.getElementById('clearText').onclick=()=>{ text=''; render(); };
+
+  // 表エリアでも走査できる（補助）
+  const wrap=document.getElementById('chartWrap'); let tY=0, tMoved=false;
+  wrap.addEventListener('touchstart',e=>{ tY=e.touches[0].clientY; tMoved=false; },{passive:true});
+  wrap.addEventListener('touchmove',e=>{ const dy=e.touches[0].clientY-tY; if(Math.abs(dy)>=34){ dialMove(dy<0?1:-1); tY=e.touches[0].clientY; tMoved=true; } },{passive:true});
+
+  window.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'||e.key==='ArrowRight'){ e.preventDefault(); dialMove(1); }
+    else if(e.key==='ArrowUp'||e.key==='ArrowLeft'){ e.preventDefault(); dialMove(-1); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tap(); }
+    else if(e.key==='Backspace'){ e.preventDefault(); dtap(); }
+  });
+
+  buildStrip(); placeStrip(0,false); render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Decidle — 黄昏のスワイプ判断デッキ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --dusk-1:#241d38; --dusk-2:#3f2e4f; --dusk-3:#6b4459; --dusk-4:#b56a52;
+    --cream:#f6efe1; --cream-edge:#e8dcc4; --ink:#2c2438; --ink-soft:#6c6076;
+    --coral:#e8765a; --coral-deep:#c9543c; --teal:#3fae9b; --teal-deep:#2c8a79;
+    --gold:#e6b24f; --shadow:rgba(20,10,30,.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Zen Maru Gothic",system-ui,sans-serif; color:var(--cream);
+    background:
+      radial-gradient(120% 90% at 80% -10%, rgba(230,178,79,.22), transparent 55%),
+      radial-gradient(130% 110% at 15% 110%, rgba(181,106,82,.30), transparent 60%),
+      linear-gradient(165deg, var(--dusk-1) 0%, var(--dusk-2) 45%, var(--dusk-3) 100%);
+    background-attachment:fixed; min-height:100dvh;
+    display:flex; flex-direction:column; align-items:center; overflow-x:hidden; position:relative;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.06;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{width:100%;max-width:480px;flex:1;display:flex;flex-direction:column;padding:18px 18px 26px;position:relative;z-index:1;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px;}
+  .brand{font-family:"Shippori Mincho",serif;font-weight:700;letter-spacing:.06em;font-size:19px;display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold);}
+  .ghost-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:var(--cream);
+    font-family:inherit;font-size:12.5px;padding:7px 13px;border-radius:999px;cursor:pointer;transition:.18s;backdrop-filter:blur(4px);}
+  .ghost-btn:hover{background:rgba(255,255,255,.16);}
+  .ghost-btn:active{transform:scale(.96);}
+
+  .screen{flex:1;display:flex;flex-direction:column;}
+  #intro{justify-content:center;gap:22px;text-align:center;padding:10px 4px;animation:rise .5s ease both;}
+  .intro-title{font-family:"Shippori Mincho",serif;font-weight:700;font-size:30px;line-height:1.4;}
+  .intro-title small{display:block;font-size:13px;font-weight:500;letter-spacing:.18em;color:var(--gold);margin-bottom:12px;font-family:"Zen Maru Gothic";}
+  .intro-lead{font-size:14px;line-height:1.95;color:rgba(246,239,225,.82);max-width:330px;margin:0 auto;}
+  .intro-actions{display:flex;flex-direction:column;gap:11px;margin-top:6px;align-items:center;}
+  .big-btn{font-family:inherit;font-weight:700;font-size:15px;border:none;cursor:pointer;border-radius:16px;padding:16px 22px;width:100%;max-width:300px;
+    transition:.18s;display:flex;align-items:center;justify-content:center;gap:9px;}
+  .big-btn:active{transform:scale(.97);}
+  .btn-primary{background:linear-gradient(135deg,var(--gold),#d98f3c);color:#3a2410;box-shadow:0 10px 28px rgba(230,178,79,.32);}
+  .btn-primary:hover{filter:brightness(1.05);}
+  .link-row{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:2px;}
+  .text-link{background:none;border:none;color:rgba(246,239,225,.62);font-family:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+  .text-link:hover{color:var(--cream);}
+  .fmt-note{font-size:11.5px;color:rgba(246,239,225,.45);line-height:1.7;margin-top:8px;max-width:320px;margin-left:auto;margin-right:auto;}
+  .fmt-note code{background:rgba(255,255,255,.09);padding:1px 6px;border-radius:5px;font-family:ui-monospace,monospace;font-size:11px;color:var(--gold);}
+
+  #deck{display:none;}
+  .progress-wrap{margin:14px 0 6px;}
+  .progress-meta{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:rgba(246,239,225,.7);margin-bottom:7px;}
+  .progress-meta b{font-family:"Shippori Mincho",serif;font-size:15px;color:var(--cream);}
+  .progress-track{height:5px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}
+  .progress-fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--teal),var(--gold));transition:width .35s cubic-bezier(.2,.7,.2,1);}
+
+  .stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;margin:8px 0 4px;min-height:380px;}
+  .card{
+    position:absolute;width:100%;max-width:340px;height:420px;border-radius:26px;
+    background:linear-gradient(170deg,var(--cream),#efe5d2);
+    color:var(--ink);box-shadow:0 22px 50px var(--shadow),inset 0 0 0 1px var(--cream-edge);
+    padding:26px 24px;display:flex;flex-direction:column;cursor:grab;
+    will-change:transform;touch-action:none;overflow:hidden;
+  }
+  .card::after{content:"";position:absolute;inset:0;border-radius:26px;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.5'/%3E%3C/svg%3E");
+    opacity:.045;}
+  .card.dragging{cursor:grabbing;transition:none;}
+  .card-num{font-size:11px;letter-spacing:.2em;color:var(--ink-soft);font-weight:500;}
+  .card-q{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;
+    font-family:"Shippori Mincho",serif;font-weight:700;font-size:25px;line-height:1.65;color:var(--ink);
+    overflow:auto;padding:6px 2px;}
+  .card-rec{display:flex;align-items:flex-start;gap:8px;background:rgba(230,178,79,.16);border:1px solid rgba(230,178,79,.4);
+    border-radius:13px;padding:10px 13px;font-size:12.5px;line-height:1.7;color:#7a5a1c;}
+  .card-rec .star{flex:0 0 auto;color:var(--gold);font-size:14px;line-height:1.4;}
+  .card-rec.hide{display:none;}
+  .card-choices{display:flex;justify-content:space-between;margin-top:16px;gap:10px;}
+  .choice-chip{flex:1;text-align:center;font-size:12.5px;font-weight:700;padding:9px 6px;border-radius:11px;color:#fff;line-height:1.4;}
+  .chip-left{background:linear-gradient(135deg,var(--coral),var(--coral-deep));}
+  .chip-right{background:linear-gradient(135deg,var(--teal),var(--teal-deep));}
+  .chip-left::before{content:"\2190 ";opacity:.7;}
+  .chip-right::after{content:" \2192";opacity:.7;}
+
+  .stamp{position:absolute;top:30px;font-family:"Shippori Mincho",serif;font-weight:700;font-size:24px;letter-spacing:.04em;
+    padding:6px 14px;border-radius:12px;border:3px solid;opacity:0;transition:opacity .1s;pointer-events:none;max-width:55%;}
+  .stamp.left{right:24px;transform:rotate(14deg);color:var(--coral-deep);border-color:var(--coral-deep);}
+  .stamp.right{left:24px;transform:rotate(-14deg);color:var(--teal-deep);border-color:var(--teal-deep);}
+  .card.behind{pointer-events:none;}
+
+  .fly-left{transition:transform .42s cubic-bezier(.4,0,.6,1),opacity .42s;transform:translate(-130%,30px) rotate(-22deg)!important;opacity:0!important;}
+  .fly-right{transition:transform .42s cubic-bezier(.4,0,.6,1),opacity .42s;transform:translate(130%,30px) rotate(22deg)!important;opacity:0!important;}
+  .fly-up{transition:transform .42s cubic-bezier(.4,0,.6,1),opacity .42s;transform:translateY(-130%) scale(.9)!important;opacity:0!important;}
+
+  .actions{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px;padding-top:6px;}
+  .act{cursor:pointer;border-radius:50%;display:grid;place-items:center;transition:.16s;
+    background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:var(--cream);backdrop-filter:blur(4px);}
+  .act:hover{transform:translateY(-3px);}
+  .act:active{transform:scale(.9);}
+  .act:disabled{opacity:.3;cursor:default;transform:none;}
+  .act.big{width:66px;height:66px;font-size:28px;}
+  .act.sm{width:48px;height:48px;font-size:19px;}
+  .act.nope{color:var(--coral);border-color:rgba(232,118,90,.5);background:rgba(232,118,90,.13);}
+  .act.yep{color:var(--teal);border-color:rgba(63,174,155,.5);background:rgba(63,174,155,.13);}
+  .act-labels{display:flex;justify-content:center;gap:14px;font-size:10.5px;color:rgba(246,239,225,.5);margin-top:6px;letter-spacing:.05em;}
+  .act-labels span{text-align:center;}
+
+  #done{display:none;justify-content:center;text-align:center;gap:20px;animation:rise .5s ease both;padding:14px 4px;}
+  .done-emoji{font-size:46px;}
+  .done-title{font-family:"Shippori Mincho",serif;font-weight:700;font-size:25px;line-height:1.5;}
+  .done-sub{font-size:13.5px;color:rgba(246,239,225,.8);line-height:1.9;max-width:320px;margin:0 auto;}
+  .stats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:4px 0;}
+  .stat{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:15px;padding:13px 16px;min-width:84px;}
+  .stat .n{font-family:"Shippori Mincho",serif;font-size:24px;font-weight:700;}
+  .stat .l{font-size:11px;color:rgba(246,239,225,.62);margin-top:3px;}
+  .stat.l-c .n{color:var(--coral);}
+  .stat.l-r .n{color:var(--teal);}
+  .stat.l-f .n{color:var(--gold);}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:rgba(20,12,28,.92);
+    color:var(--cream);padding:11px 20px;border-radius:999px;font-size:13px;opacity:0;transition:.3s;z-index:50;border:1px solid rgba(255,255,255,.14);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @keyframes rise{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:none;}}
+  @keyframes flip{from{opacity:0;transform:rotateY(-12deg) scale(.96);}to{opacity:1;transform:none;}}
+  input[type=file]{display:none;}
+
+  .freetext{position:absolute;inset:0;background:linear-gradient(170deg,#fbf6ec,#efe5d2);border-radius:26px;padding:24px;
+    display:none;flex-direction:column;gap:14px;z-index:5;animation:flip .28s ease both;box-shadow:inset 0 0 0 1px var(--cream-edge);}
+  .freetext.show{display:flex;}
+  .freetext h3{font-family:"Shippori Mincho",serif;color:var(--ink);font-size:17px;}
+  .freetext p{font-size:12.5px;color:var(--ink-soft);line-height:1.7;}
+  .freetext textarea{flex:1;resize:none;border:1.5px solid var(--cream-edge);border-radius:14px;padding:14px;font-family:inherit;
+    font-size:15px;color:var(--ink);background:#fffdf8;line-height:1.7;}
+  .freetext textarea:focus{outline:none;border-color:var(--gold);}
+  .ft-actions{display:flex;gap:10px;}
+  .ft-actions button{flex:1;font-family:inherit;font-weight:700;font-size:14px;border:none;border-radius:13px;padding:13px;cursor:pointer;transition:.16s;}
+  .ft-cancel{background:rgba(44,36,56,.08);color:var(--ink-soft);}
+  .ft-save{background:linear-gradient(135deg,var(--gold),#d98f3c);color:#3a2410;}
+  .ft-actions button:active{transform:scale(.97);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span>Decidle</div>
+    <button class="ghost-btn" id="restartBtn" style="display:none">最初から</button>
+  </div>
+
+  <section class="screen" id="intro">
+    <div class="intro-title"><small>SWIPE TO DECIDE</small>迷いを、<br>めくって手放す。</div>
+    <p class="intro-lead">判断したいことをためたCSVを読み込んで、トランプみたいにスワイプしてくだけ。決めたら流れていく。終わったら結果入りのCSVが手元に戻ってくるよ。</p>
+    <div class="intro-actions">
+      <button class="big-btn btn-primary" id="importBtn">📂 CSVを読み込む</button>
+      <button class="big-btn" id="sampleBtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:var(--cream)">✦ サンプルで試す</button>
+      <div class="link-row">
+        <button class="text-link" id="templateBtn">テンプレCSVをダウンロード</button>
+      </div>
+      <p class="fmt-note">列は <code>質問</code>（必須）/ <code>左の選択肢</code> / <code>右の選択肢</code> / <code>おすすめ</code> / <code>回答結果</code>。選択肢が空なら自動で <code>✗ / ○</code> になるよ。文字コードはUTF-8でね。</p>
+    </div>
+    <input type="file" id="fileInput" accept=".csv,text/csv">
+  </section>
+
+  <section class="screen" id="deck">
+    <div class="progress-wrap">
+      <div class="progress-meta"><span><b id="curNum">0</b> / <span id="totNum">0</span> 枚</span><span id="remainLabel"></span></div>
+      <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="actions">
+      <button class="act sm" id="undoBtn" title="ひとつ戻す">↺</button>
+      <button class="act big nope" id="nopeBtn" title="左">✗</button>
+      <button class="act sm" id="freeBtn" title="自由回答">✎</button>
+      <button class="act big yep" id="yepBtn" title="右">○</button>
+      <button class="act sm" id="skipBtn" title="保留してあとで">⤼</button>
+    </div>
+    <div class="act-labels"><span style="width:48px">戻す</span><span style="width:66px">左</span><span style="width:48px">自由</span><span style="width:66px">右</span><span style="width:48px">保留</span></div>
+  </section>
+
+  <section class="screen" id="done">
+    <div class="done-emoji">🪄</div>
+    <div class="done-title" id="doneTitle">ぜんぶ片付いた。</div>
+    <p class="done-sub" id="doneSub"></p>
+    <div class="stats" id="stats"></div>
+    <div class="intro-actions">
+      <button class="big-btn btn-primary" id="downloadBtn">⬇ 結果入りCSVを保存</button>
+      <button class="big-btn" id="againBtn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:var(--cream)">もう一度はじめる</button>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+const state = { fields:[], rows:[], cards:[], answerField:"回答結果", index:0, history:[] };
+
+const ALIASES = {
+  question: ["質問","問い","お題","判断","項目","question","q"],
+  left:     ["左の選択肢","左選択肢","左","選択肢左","left","no","いいえ"],
+  right:    ["右の選択肢","右選択肢","右","選択肢右","right","yes","はい"],
+  recommend:["おすすめ","オススメ","推奨","ヒント","ポイント","recommend","recommendation","hint","tip"],
+  answer:   ["回答結果","回答","結果","answer","result","ans"],
+};
+
+const $ = (id)=>document.getElementById(id);
+function show(screen){
+  ["intro","deck","done"].forEach(s=>{ $(s).style.display = (s===screen)?"flex":"none"; });
+  $("restartBtn").style.display = (screen==="intro") ? "none" : "block";
+}
+let toastTimer;
+function toast(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),1800);
+}
+function findField(fields, kind){
+  const lower = fields.map(f=>String(f).trim().toLowerCase());
+  for(const a of ALIASES[kind]){ const i=lower.indexOf(a.toLowerCase()); if(i>=0) return fields[i]; }
+  for(const a of ALIASES[kind]){ const i=lower.findIndex(f=>f.includes(a.toLowerCase())); if(i>=0) return fields[i]; }
+  return null;
+}
+
+function ingest(rows, fields){
+  fields = fields.slice();
+  const qF = findField(fields,"question") || fields[0];
+  const lF = findField(fields,"left");
+  const rF = findField(fields,"right");
+  const recF = findField(fields,"recommend");
+  let ansF = findField(fields,"answer");
+  if(!ansF){ ansF="回答結果"; if(!fields.includes(ansF)) fields.push(ansF); }
+
+  const cards=[];
+  rows.forEach(row=>{
+    const q=(row[qF]||"").toString().trim();
+    if(!q) return;
+    if(!(ansF in row)) row[ansF]="";
+    cards.push({
+      rowRef: row, question: q,
+      left:  ((lF && row[lF])||"").toString().trim() || "✗",
+      right: ((rF && row[rF])||"").toString().trim() || "○",
+      recommend: ((recF && row[recF])||"").toString().trim(),
+    });
+  });
+  if(cards.length===0){ toast("『質問』の列が見つからないか、中身が空っぽみたい"); return false; }
+
+  state.fields=fields; state.rows=rows; state.cards=cards;
+  state.answerField=ansF; state.index=0; state.history=[];
+  return true;
+}
+
+let active=null;
+
+function renderDeck(){
+  const stage=$("stage"); stage.innerHTML="";
+  $("totNum").textContent=state.cards.length;
+  $("curNum").textContent=Math.min(state.index+1,state.cards.length);
+  $("progFill").style.width=(state.cards.length? (state.index/state.cards.length*100):0)+"%";
+  const remain=state.cards.length-state.index;
+  $("remainLabel").textContent = remain<=0?"完了":(remain<=3?`ラスト${remain}枚`:`残り${remain}枚`);
+
+  if(state.index>=state.cards.length){ finish(); return; }
+
+  for(let depth=2; depth>=0; depth--){
+    const i=state.index+depth;
+    if(i>=state.cards.length) continue;
+    const c=state.cards[i];
+    const el=document.createElement("div");
+    el.className="card"+(depth>0?" behind":"");
+    el.style.zIndex=10-depth;
+    if(depth>0){
+      el.style.transform=`translateY(${depth*-12}px) scale(${1-depth*0.045})`;
+      el.style.opacity=depth===2?.55:.8;
+    }
+    el.innerHTML=`
+      <div class="stamp left"></div>
+      <div class="stamp right"></div>
+      <div class="card-num">CARD ${i+1} / ${state.cards.length}</div>
+      <div class="card-q"></div>
+      <div class="card-rec ${c.recommend?'':'hide'}"><span class="star">✦</span><span class="rec-txt"></span></div>
+      <div class="card-choices">
+        <div class="choice-chip chip-left"></div>
+        <div class="choice-chip chip-right"></div>
+      </div>
+      <div class="freetext">
+        <h3>自分の言葉で答える</h3>
+        <p>左右で選べないときはここに。書いた内容がそのまま回答結果になるよ。</p>
+        <textarea placeholder="例：来週まで保留。状況を見てから決める"></textarea>
+        <div class="ft-actions">
+          <button class="ft-cancel">もどる</button>
+          <button class="ft-save">これで決定</button>
+        </div>
+      </div>`;
+    el.querySelector(".card-q").textContent=c.question;
+    if(c.recommend) el.querySelector(".rec-txt").textContent=c.recommend;
+    el.querySelector(".chip-left").textContent=c.left;
+    el.querySelector(".chip-right").textContent=c.right;
+    el.querySelector(".stamp.left").textContent=c.left;
+    el.querySelector(".stamp.right").textContent=c.right;
+
+    if(depth===0){ active=el; attachDrag(el,c); attachFreeText(el,c); }
+    stage.appendChild(el);
+  }
+  updateButtons();
+}
+
+function updateButtons(){
+  $("undoBtn").disabled = state.history.length===0;
+  const onCard = state.index<state.cards.length;
+  ["nopeBtn","yepBtn","freeBtn","skipBtn"].forEach(b=>$(b).disabled=!onCard);
+}
+
+function attachDrag(el, card){
+  let startX=0,startY=0,dx=0,dy=0,dragging=false;
+  const stampL=el.querySelector(".stamp.left");
+  const stampR=el.querySelector(".stamp.right");
+  const THRESH=105;
+  const onDown=(e)=>{
+    if(e.target.closest(".freetext")) return;
+    dragging=true; el.classList.add("dragging");
+    startX=e.clientX; startY=e.clientY;
+    if(el.setPointerCapture){ try{el.setPointerCapture(e.pointerId);}catch(_){} }
+  };
+  const onMove=(e)=>{
+    if(!dragging) return;
+    dx=e.clientX-startX; dy=e.clientY-startY;
+    el.style.transform=`translate(${dx}px,${dy}px) rotate(${dx*0.06}deg)`;
+    const r=Math.min(Math.abs(dx)/THRESH,1);
+    stampL.style.opacity = dx<0? r:0;
+    stampR.style.opacity = dx>0? r:0;
+  };
+  const onUp=()=>{
+    if(!dragging) return; dragging=false; el.classList.remove("dragging");
+    if(dx<=-THRESH){ choose("left",card); }
+    else if(dx>=THRESH){ choose("right",card); }
+    else { el.style.transform=""; stampL.style.opacity=0; stampR.style.opacity=0; }
+    dx=0; dy=0;
+  };
+  el.addEventListener("pointerdown",onDown);
+  el.addEventListener("pointermove",onMove);
+  el.addEventListener("pointerup",onUp);
+  el.addEventListener("pointercancel",onUp);
+}
+
+function attachFreeText(el, card){
+  const panel=el.querySelector(".freetext");
+  const ta=el.querySelector("textarea");
+  el.querySelector(".ft-cancel").addEventListener("click",()=>panel.classList.remove("show"));
+  el.querySelector(".ft-save").addEventListener("click",()=>{
+    const v=ta.value.trim();
+    if(!v){ toast("ひとことだけでも書いてね"); ta.focus(); return; }
+    panel.classList.remove("show");
+    commit(card, v, "up");
+  });
+  el._openFree=()=>{ panel.classList.add("show"); setTimeout(()=>ta.focus(),120); };
+}
+
+function currentCard(){ return state.cards[state.index]; }
+
+function choose(side, card){
+  commit(card, side==="left"?card.left:card.right, side);
+}
+
+function commit(card, value, dir){
+  if(!active) return;
+  state.history.push({ index: state.index, prevValue: card.rowRef[state.answerField] });
+  card.rowRef[state.answerField]=value;
+  const el=active; active=null;
+  el.classList.add(dir==="left"?"fly-left":dir==="up"?"fly-up":"fly-right");
+  let advanced=false;
+  const go=()=>{ if(advanced) return; advanced=true; state.index++; renderDeck(); };
+  el.addEventListener("transitionend", go, {once:true});
+  setTimeout(go, 520);
+}
+
+function skipCard(){
+  if(!active) return;
+  if(state.cards.length-state.index<=1){ toast("これが最後の1枚。保留できないよ"); return; }
+  const el=active; active=null;
+  el.classList.add("fly-up");
+  const c=state.cards.splice(state.index,1)[0];
+  state.cards.push(c);
+  let done=false;
+  const go=()=>{ if(done) return; done=true; renderDeck(); };
+  el.addEventListener("transitionend", go, {once:true});
+  setTimeout(go, 520);
+  toast("あとで戻すね");
+}
+
+function undo(){
+  if(state.history.length===0) return;
+  const h=state.history.pop();
+  state.index=h.index;
+  if(state.cards[h.index]) state.cards[h.index].rowRef[state.answerField]=h.prevValue;
+  active=null;
+  renderDeck();
+}
+
+function finish(){
+  let lc=0, rc=0, fc=0;
+  state.cards.forEach(c=>{
+    const v=(c.rowRef[state.answerField]||"").toString();
+    if(v===c.left) lc++;
+    else if(v===c.right) rc++;
+    else if(v) fc++;
+  });
+  $("stats").innerHTML=`
+    <div class="stat l-c"><div class="n">${lc}</div><div class="l">左の選択</div></div>
+    <div class="stat l-r"><div class="n">${rc}</div><div class="l">右の選択</div></div>
+    <div class="stat l-f"><div class="n">${fc}</div><div class="l">自由回答</div></div>`;
+  $("doneSub").textContent=`${state.cards.length}件、ぜんぶ決めきった。迷ってた頃の自分、ちょっと褒めてあげていいやつだよ。下のボタンで結果入りCSVが落とせる。`;
+  show("done");
+}
+
+/* ---- CSV出力 ---- */
+function downloadCSV(filename, csvText){
+  const blob=new Blob(["\uFEFF"+csvText],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function exportResult(){
+  const csv=Papa.unparse({ fields: state.fields, data: state.rows });
+  downloadCSV("decidle_result.csv", csv);
+  toast("保存したよ");
+}
+
+/* ---- サンプル & テンプレ ---- */
+const SAMPLE = [
+  {質問:"今夜の夕飯、自炊する？", 左の選択肢:"外で済ます", 右の選択肢:"自炊する", おすすめ:"疲れてるなら無理しないが吉", 回答結果:""},
+  {質問:"このサブスク、続ける？", 左の選択肢:"解約", 右の選択肢:"継続", おすすめ:"先月使った回数を思い出して", 回答結果:""},
+  {質問:"その返信、今すぐする？", 左の選択肢:"あとで", 右の選択肢:"今すぐ", おすすめ:"5分で終わるなら今やっちゃお", 回答結果:""},
+  {質問:"積んでる本、読む？", 左の選択肢:"手放す", 右の選択肢:"読む", おすすめ:"", 回答結果:""},
+  {質問:"週末、予定を入れる？", 左の選択肢:"何もしない", 右の選択肢:"予定入れる", おすすめ:"たまには余白も悪くない", 回答結果:""},
+  {質問:"そのアイデア、今やる？", 左の選択肢:"寝かせる", 右の選択肢:"今やる", おすすめ:"", 回答結果:""},
+  {質問:"飲み会の二次会、行く？", 左の選択肢:"帰る", 右の選択肢:"行く", おすすめ:"明日が早いなら帰ろ", 回答結果:""},
+  {質問:"今日の自分、よくやった？", 左の選択肢:"", 右の選択肢:"", おすすめ:"ハードルは思いきり下げていこ", 回答結果:""},
+];
+const SAMPLE_FIELDS=["質問","左の選択肢","右の選択肢","おすすめ","回答結果"];
+
+function loadSample(){
+  const rows=SAMPLE.map(r=>Object.assign({},r));
+  if(ingest(rows, SAMPLE_FIELDS.slice())){ show("deck"); renderDeck(); }
+}
+function downloadTemplate(){
+  const tmpl=[
+    {質問:"このタスク、今日やる？", 左の選択肢:"明日でいい", 右の選択肢:"今日やる", おすすめ:"15分で終わるなら今日", 回答結果:""},
+    {質問:"この服、もう一年着る？", 左の選択肢:"手放す", 右の選択肢:"とっておく", おすすめ:"", 回答結果:""},
+    {質問:"（質問だけ書けば、選択肢は自動で ✗ / ○ になります）", 左の選択肢:"", 右の選択肢:"", おすすめ:"", 回答結果:""},
+  ];
+  downloadCSV("decidle_template.csv", Papa.unparse({fields:SAMPLE_FIELDS.slice(), data:tmpl}));
+  toast("テンプレ落としたよ");
+}
+
+/* ---- イベント結線 ---- */
+$("importBtn").addEventListener("click",()=>$("fileInput").click());
+$("sampleBtn").addEventListener("click",loadSample);
+$("templateBtn").addEventListener("click",downloadTemplate);
+$("fileInput").addEventListener("change",(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  Papa.parse(f,{
+    header:true, skipEmptyLines:true,
+    complete:(res)=>{
+      const fields=(res.meta && res.meta.fields)||[];
+      if(!fields.length){ toast("ヘッダー行が読めなかった…1行目に列名ある？"); return; }
+      if(ingest(res.data, fields)){ show("deck"); renderDeck(); }
+    },
+    error:()=>toast("CSVの読み込みに失敗。文字コードがUTF-8か確認してみて")
+  });
+  e.target.value="";
+});
+
+$("nopeBtn").addEventListener("click",()=>{ if(active) choose("left",currentCard()); });
+$("yepBtn").addEventListener("click",()=>{ if(active) choose("right",currentCard()); });
+$("freeBtn").addEventListener("click",()=>{ if(active) active._openFree(); });
+$("skipBtn").addEventListener("click",skipCard);
+$("undoBtn").addEventListener("click",undo);
+
+$("downloadBtn").addEventListener("click",exportResult);
+$("againBtn").addEventListener("click",()=>show("intro"));
+$("restartBtn").addEventListener("click",()=>{
+  if(confirm("最初の画面に戻る？ いまの回答は消えるよ")) show("intro");
+});
+
+document.addEventListener("keydown",(e)=>{
+  if($("deck").style.display==="none") return;
+  if(document.activeElement && document.activeElement.tagName==="TEXTAREA") return;
+  if(e.key==="ArrowLeft"){ if(active) choose("left",currentCard()); }
+  else if(e.key==="ArrowRight"){ if(active) choose("right",currentCard()); }
+  else if(e.key==="ArrowUp" || e.key.toLowerCase()==="f"){ e.preventDefault(); if(active) active._openFree(); }
+  else if(e.key==="Backspace"){ e.preventDefault(); undo(); }
+});
+
+show("intro");
+</script>
+</body>
+</html>
