@@ -1,5 +1,5 @@
-# html-okiba-bycc
-くろこさんとつくったhtml置き場
+# html-okiba-byclaude
+Claudeさんとつくったhtml置き場
 
 ## おしながき
 - [markdown-viewer.html](https://nu424.github.io/html-okiba-bycc/markdown-viewer.html): .mdファイルをただ表示するだけのシンプルなツール。
