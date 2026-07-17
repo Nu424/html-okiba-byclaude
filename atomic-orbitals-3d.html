@@ -26,7 +26,7 @@
     overflow:hidden;
     -webkit-font-smoothing:antialiased;
   }
-  canvas#stage{position:fixed;inset:0;display:block;touch-action:none}
+  canvas#stage{position:fixed;top:0;left:0;width:100%;height:100%;display:block;touch-action:none}
   .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
 
   /* ---------- 左パネル ---------- */
@@ -600,10 +600,13 @@ canvas.addEventListener('touchend', () => pinch = 0, {passive:true});
 
 function resize(){
   const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h, false);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(w, h, false);   // CSS側で width/height:100% を明示済み
   camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 addEventListener('resize', () => { resize(); drawRadial(); });
+addEventListener('orientationchange', () => setTimeout(() => { resize(); drawRadial(); }, 250));
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
 
 function loop(){
   requestAnimationFrame(loop);
