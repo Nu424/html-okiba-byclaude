@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="画面を撮った写真のモアレ（色にじみ・格子縞）を、ブラウザ内だけで低減します。画像は外部に送信しません。" />
+  <meta name="theme-color" content="#f3efe6" />
+  <title>モアレ低減</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect fill='%231a1814' width='16' height='16' rx='3'/%3E%3Cpath fill='%23f3efe6' d='M3 3h2v10H3zm4 0h2v10H7zm4 0h2v10h-2z'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --bg-2: #e8e2d4;
+      --ink: #1a1814;
+      --muted: #6a6458;
+      --line: #d4ccbc;
+      --paper: #fffcf7;
+      --accent: #1e4fbe;
+      --accent-ink: #fff;
+      --ok: #1c7a48;
+      --err: #b42318;
+      --sans: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    html { color-scheme: light; }
+    body {
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    [hidden] { display: none !important; }
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 36px 20px 48px;
+    }
+    header { margin-bottom: 22px; }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+      background: #e8eefc;
+      border-radius: 999px;
+      padding: 3px 10px;
+      margin: 0 0 10px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin: 0 0 8px;
+    }
+    header .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 38em;
+    }
+    .drop {
+      border: 1.5px dashed #c4baa8;
+      border-radius: 16px;
+      padding: 36px 20px;
+      text-align: center;
+      background: var(--paper);
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, padding 0.15s;
+    }
+    .drop svg {
+      display: block;
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 12px;
+      stroke: var(--ink);
+      fill: none;
+      stroke-width: 1.6;
+    }
+    .drop:hover, .drop.over {
+      border-color: var(--accent);
+      background: #f4f7ff;
+      color: var(--ink);
+    }
+    .drop strong { color: var(--ink); font-weight: 700; }
+    .drop p { margin: 6px 0 0; font-size: 13px; }
+    .drop.compact {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .drop.compact svg { margin: 0; width: 22px; height: 22px; }
+    .drop.compact p { display: none; }
+    #file {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-top: 16px;
+      align-items: start;
+    }
+    .layout.has-files {
+      grid-template-columns: 1fr 280px;
+    }
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 13px 16px 11px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-body { padding: 14px 16px 16px; }
+    label.field {
+      display: block;
+      margin-bottom: 12px;
+    }
+    label.field > span {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    select, input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    select:focus, input:focus { border-color: var(--accent); }
+    .hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0 0 12px;
+      line-height: 1.5;
+    }
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 9px;
+      padding: 9px 14px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .btn:hover:not(:disabled) { background: var(--bg-2); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+    }
+    .btn-primary:hover:not(:disabled) { background: #1843a3; }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .file-list { list-style: none; margin: 0; padding: 0; }
+    .file-list li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 12px;
+      padding: 11px 0;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .file-list li:first-child { border-top: 0; }
+    .file-list .name {
+      font-weight: 650;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-list .meta { color: var(--muted); font-size: 12px; }
+    .empty {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .status { font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .status.wait { color: var(--muted); }
+    .status.run { color: var(--accent); }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+    .progress {
+      display: none;
+      height: 3px;
+      background: var(--bg-2);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress.on { display: block; }
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+    }
+    .note {
+      margin: 12px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 800px) {
+      .wrap { padding: 24px 16px 40px; }
+      header h1 { font-size: 24px; }
+      .layout { grid-template-columns: 1fr; }
+      .actions {
+        position: sticky;
+        bottom: 12px;
+        padding-top: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="badge">この端末内で処理</p>
+      <h1>モアレ低減</h1>
+      <p class="lead">
+        液晶画面を撮ったときの色にじみや格子縞を抑えます。
+        画像はどこにも送らず、お使いのブラウザの中だけで処理します。
+      </p>
+    </header>
+
+    <input id="file" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp" multiple aria-hidden="true" tabindex="-1" />
+    <div class="drop" id="drop" tabindex="0" role="button" aria-controls="file">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M8 13l2.2-2.2a1 1 0 011.4 0L15 14l1.3-1.3a1 1 0 011.4 0L20 15" />
+        <circle cx="8.5" cy="9" r="1.1" fill="currentColor" stroke="none" />
+      </svg>
+      <div>
+        <strong>画像をドロップ</strong>、またはクリックして選択
+        <p>JPEG / PNG / WebP / BMP　・　複数枚可</p>
+      </div>
+    </div>
+
+    <div class="layout">
+      <section class="panel" id="filesPanel" hidden>
+        <h2>選択した画像</h2>
+        <div class="panel-body">
+          <div class="toolbar">
+            <span id="countLabel">まだ選択されていません</span>
+            <button type="button" class="btn" id="clearBtn" disabled>クリア</button>
+          </div>
+          <ul class="file-list" id="list"></ul>
+          <p class="empty" id="emptyHint">ドロップまたは選択すると、ここにファイル名が並びます。</p>
+          <div class="progress" id="progress"><span></span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>処理方法</h2>
+        <div class="panel-body">
+          <label class="field">
+            <span>手法</span>
+            <select id="method">
+              <option value="screen" selected>画面撮影（推奨）</option>
+              <option value="chroma">色にじみだけ消す</option>
+              <option value="downscale">縮小して消す</option>
+              <option value="median">メディアン</option>
+              <option value="gaussian">全体をぼかす</option>
+            </select>
+          </label>
+          <p class="hint" id="methodHint"></p>
+          <div class="row-2" id="paramRow">
+            <label class="field" id="paramChroma">
+              <span>色のにじみ</span>
+              <input id="chromaSigma" type="number" min="0.1" max="12" step="0.1" value="2" />
+            </label>
+            <label class="field" id="paramKsize">
+              <span>縞を抑える範囲</span>
+              <select id="ksize">
+                <option value="3" selected>3</option>
+                <option value="5">5</option>
+                <option value="7">7</option>
+              </select>
+            </label>
+          </div>
+          <label class="field" id="paramScale" hidden>
+            <span>縮小率（0.5 で半分）</span>
+            <input id="scale" type="number" min="0.1" max="1" step="0.01" value="0.5" />
+          </label>
+          <label class="field" id="paramSigma" hidden>
+            <span>ぼかしの強さ</span>
+            <input id="sigma" type="number" min="0.1" max="8" step="0.1" value="1" />
+          </label>
+          <div class="actions">
+            <button type="button" class="btn btn-primary" id="runBtn" disabled>処理して保存</button>
+            <button type="button" class="btn" id="dlBtn" disabled>保存し直す</button>
+          </div>
+          <p class="note" id="dlNote">1枚はそのまま保存、2枚以上は ZIP にまとめて保存します。</p>
+        </div>
+      </section>
+    </div>
+
+    <footer>処理はお使いの端末内で完結します。画像をサーバへアップロードすることはありません。</footer>
+  </div>
+
+  <script>
+(function () {
+  "use strict";
+
+  const HINTS = {
+    screen: "色のにじみを消し、文字は比較的くっきり残します。画面を撮った写真向けです。",
+    chroma: "色のにじみだけを消します。文字の鮮鋭さを最優先したいときに向きます。",
+    downscale: "画像を縮小して格子ごと消します。いちばん確実ですが、解像度は下がります。",
+    median: "近くの画素の中央値で置き換えます。細かいノイズ向けで、ディテールは少し鈍ります。",
+    gaussian: "画像全体をぼかします。単純ですが、写真全体がやわらかくなります。"
+  };
+
+  function createProcessor() {
+    function reflectIdx(i, n) {
+      if (n <= 1) return 0;
+      const period = 2 * n;
+      i = ((i % period) + period) % period;
+      return i < n ? i : period - 1 - i;
+    }
+
+    function clipU8(v) {
+      if (v <= 0) return 0;
+      if (v >= 255) return 255;
+      return v | 0;
+    }
+
+    function isGray(rgba) {
+      for (let i = 0; i < rgba.length; i += 4) {
+        if (rgba[i] !== rgba[i + 1] || rgba[i] !== rgba[i + 2]) return false;
+      }
+      return true;
+    }
+
+    function gaussianKernel(sigma) {
+      const lw = Math.max(1, Math.floor(4 * sigma + 0.5));
+      const k = new Float32Array(lw * 2 + 1);
+      let sum = 0;
+      for (let i = -lw; i <= lw; i++) {
+        const v = Math.exp(-0.5 * (i / sigma) * (i / sigma));
+        k[i + lw] = v;
+        sum += v;
+      }
+      for (let i = 0; i < k.length; i++) k[i] /= sum;
+      return k;
+    }
+
+    function gaussianInPlace(src, w, h, sigma, tmp) {
+      if (!(sigma > 1e-6)) return;
+      const k = gaussianKernel(sigma);
+      const lw = (k.length - 1) >> 1;
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          let acc = 0;
+          for (let t = -lw; t <= lw; t++) {
+            acc += src[row + reflectIdx(x + t, w)] * k[t + lw];
+          }
+          tmp[row + x] = acc;
+        }
+      }
+      for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) {
+          let acc = 0;
+          for (let t = -lw; t <= lw; t++) {
+            acc += tmp[reflectIdx(y + t, h) * w + x] * k[t + lw];
+          }
+          src[y * w + x] = acc;
+        }
+      }
+    }
+
+    function medianTo(src, dst, w, h, ksize) {
+      const size = ksize | 0;
+      const r = (size / 2) | 0;
+      const win = new Float32Array(size * size);
+      const mid = (win.length / 2) | 0;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let n = 0;
+          for (let dy = -r; dy <= r; dy++) {
+            const yy = reflectIdx(y + dy, h) * w;
+            for (let dx = -r; dx <= r; dx++) {
+              win[n++] = src[yy + reflectIdx(x + dx, w)];
+            }
+          }
+          for (let i = 1; i < n; i++) {
+            const v = win[i];
+            let j = i;
+            while (j > 0 && win[j - 1] > v) {
+              win[j] = win[j - 1];
+              j--;
+            }
+            win[j] = v;
+          }
+          dst[y * w + x] = win[mid];
+        }
+      }
+    }
+
+    function boxResize(src, sw, sh, nw, nh) {
+      const dst = new Float32Array(nw * nh);
+      const xScale = sw / nw;
+      const yScale = sh / nh;
+      for (let oy = 0; oy < nh; oy++) {
+        const y0 = oy * yScale;
+        const y1 = (oy + 1) * yScale;
+        const iy0 = Math.floor(y0);
+        const iy1 = Math.min(sh, Math.ceil(y1));
+        for (let ox = 0; ox < nw; ox++) {
+          const x0 = ox * xScale;
+          const x1 = (ox + 1) * xScale;
+          const ix0 = Math.floor(x0);
+          const ix1 = Math.min(sw, Math.ceil(x1));
+          let sum = 0;
+          let area = 0;
+          for (let iy = iy0; iy < iy1; iy++) {
+            const wy = Math.min(y1, iy + 1) - Math.max(y0, iy);
+            if (wy <= 0) continue;
+            const row = iy * sw;
+            for (let ix = ix0; ix < ix1; ix++) {
+              const wx = Math.min(x1, ix + 1) - Math.max(x0, ix);
+              if (wx <= 0) continue;
+              const wt = wx * wy;
+              sum += src[row + ix] * wt;
+              area += wt;
+            }
+          }
+          dst[oy * nw + ox] = area > 0 ? sum / area : 0;
+        }
+      }
+      return dst;
+    }
+
+    function splitRGB(rgba, n) {
+      const r = new Float32Array(n);
+      const g = new Float32Array(n);
+      const b = new Float32Array(n);
+      for (let i = 0, p = 0; p < n; i += 4, p++) {
+        r[p] = rgba[i];
+        g[p] = rgba[i + 1];
+        b[p] = rgba[i + 2];
+      }
+      return { r: r, g: g, b: b };
+    }
+
+    function rgbToYcbcr(r, g, b) {
+      const n = r.length;
+      for (let i = 0; i < n; i++) {
+        const R = r[i], G = g[i], B = b[i];
+        r[i] = 0.299 * R + 0.587 * G + 0.114 * B;
+        g[i] = -0.168736 * R - 0.331264 * G + 0.5 * B + 128;
+        b[i] = 0.5 * R - 0.418688 * G - 0.081312 * B + 128;
+      }
+    }
+
+    function ycbcrToRgb(y, cb, cr) {
+      const n = y.length;
+      for (let i = 0; i < n; i++) {
+        const Y = y[i];
+        const CB = cb[i] - 128;
+        const CR = cr[i] - 128;
+        y[i] = Y + 1.402 * CR;
+        cb[i] = Y - 0.344136 * CB - 0.714136 * CR;
+        cr[i] = Y + 1.772 * CB;
+      }
+    }
+
+    function mergeRGBA(r, g, b, src, w, h) {
+      const out = new Uint8ClampedArray(w * h * 4);
+      for (let p = 0, i = 0; p < r.length; p++, i += 4) {
+        out[i] = clipU8(r[p]);
+        out[i + 1] = clipU8(g[p]);
+        out[i + 2] = clipU8(b[p]);
+        out[i + 3] = src[i + 3];
+      }
+      return out;
+    }
+
+    function processDownscale(rgba, w, h, scale) {
+      const s = Math.max(0.05, Math.min(1, scale));
+      const nw = Math.max(1, Math.round(w * s));
+      const nh = Math.max(1, Math.round(h * s));
+      const sigma = Math.max(0.6, 0.5 / Math.max(s, 1e-3));
+      const n = w * h;
+      const rgb = splitRGB(rgba, n);
+      const tmp = new Float32Array(n);
+      gaussianInPlace(rgb.r, w, h, sigma, tmp);
+      gaussianInPlace(rgb.g, w, h, sigma, tmp);
+      gaussianInPlace(rgb.b, w, h, sigma, tmp);
+      for (let i = 0; i < n; i++) {
+        rgb.r[i] = clipU8(rgb.r[i]);
+        rgb.g[i] = clipU8(rgb.g[i]);
+        rgb.b[i] = clipU8(rgb.b[i]);
+      }
+      const R = boxResize(rgb.r, w, h, nw, nh);
+      const G = boxResize(rgb.g, w, h, nw, nh);
+      const B = boxResize(rgb.b, w, h, nw, nh);
+      const aSrc = new Float32Array(n);
+      for (let p = 0; p < n; p++) aSrc[p] = rgba[p * 4 + 3];
+      const A = boxResize(aSrc, w, h, nw, nh);
+      const out = new Uint8ClampedArray(nw * nh * 4);
+      for (let p = 0, i = 0; p < R.length; p++, i += 4) {
+        out[i] = clipU8(R[p]);
+        out[i + 1] = clipU8(G[p]);
+        out[i + 2] = clipU8(B[p]);
+        out[i + 3] = clipU8(A[p]);
+      }
+      return { data: out, width: nw, height: nh };
+    }
+
+    function process(rgba, w, h, settings) {
+      const method = settings.method;
+      if (method === "downscale") {
+        return processDownscale(rgba, w, h, settings.scale);
+      }
+      const n = w * h;
+      const gray = isGray(rgba);
+      const rgb = splitRGB(rgba, n);
+      const tmp = new Float32Array(n);
+      const ksize = Math.max(3, settings.ksize | 0);
+      const odd = ksize % 2 === 1 ? ksize : ksize + 1;
+
+      if (method === "median") {
+        const dR = new Float32Array(n);
+        medianTo(rgb.r, dR, w, h, odd);
+        if (gray) {
+          rgb.r = rgb.g = rgb.b = dR;
+        } else {
+          const dG = new Float32Array(n);
+          const dB = new Float32Array(n);
+          medianTo(rgb.g, dG, w, h, odd);
+          medianTo(rgb.b, dB, w, h, odd);
+          rgb.r = dR; rgb.g = dG; rgb.b = dB;
+        }
+      } else if (method === "gaussian") {
+        gaussianInPlace(rgb.r, w, h, settings.sigma, tmp);
+        if (gray) {
+          rgb.g.set(rgb.r);
+          rgb.b.set(rgb.r);
+        } else {
+          gaussianInPlace(rgb.g, w, h, settings.sigma, tmp);
+          gaussianInPlace(rgb.b, w, h, settings.sigma, tmp);
+        }
+      } else if (method === "chroma" || method === "screen") {
+        if (gray) {
+          if (method === "chroma") gaussianInPlace(rgb.r, w, h, 1.0, tmp);
+          else {
+            const d = new Float32Array(n);
+            medianTo(rgb.r, d, w, h, odd);
+            rgb.r = d;
+          }
+          rgb.g = rgb.r;
+          rgb.b = rgb.r;
+        } else {
+          rgbToYcbcr(rgb.r, rgb.g, rgb.b);
+          gaussianInPlace(rgb.g, w, h, settings.chromaSigma, tmp);
+          gaussianInPlace(rgb.b, w, h, settings.chromaSigma, tmp);
+          if (method === "screen") {
+            const d = new Float32Array(n);
+            medianTo(rgb.r, d, w, h, odd);
+            rgb.r = d;
+          }
+          ycbcrToRgb(rgb.r, rgb.g, rgb.b);
+        }
+      } else {
+        throw new Error("未対応の手法です: " + method);
+      }
+
+      return { data: mergeRGBA(rgb.r, rgb.g, rgb.b, rgba, w, h), width: w, height: h };
+    }
+
+    function hasAlpha(rgba) {
+      for (let i = 3; i < rgba.length; i += 4) {
+        if (rgba[i] !== 255) return true;
+      }
+      return false;
+    }
+
+    function outputSpec(origName, alpha) {
+      const lower = origName.toLowerCase();
+      const dot = origName.lastIndexOf(".");
+      const base = dot === -1 ? origName : origName.slice(0, dot);
+      if (alpha) return { mime: "image/png", outName: base + "_demoire.png" };
+      if (lower.endsWith(".png")) return { mime: "image/png", outName: base + "_demoire.png" };
+      if (lower.endsWith(".webp")) return { mime: "image/webp", outName: base + "_demoire.webp" };
+      if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+        const ext = lower.endsWith(".jpeg") ? ".jpeg" : ".jpg";
+        return { mime: "image/jpeg", outName: base + "_demoire" + ext };
+      }
+      return { mime: "image/png", outName: base + "_demoire.png" };
+    }
+
+    return { process: process, hasAlpha: hasAlpha, outputSpec: outputSpec };
+  }
+
+  function workerMain() {
+    var api = createProcessor();
+    function decodeBitmap(blob) {
+      return createImageBitmap(blob, { imageOrientation: "from-image" }).catch(function () {
+        return createImageBitmap(blob);
+      });
+    }
+    self.onmessage = function (ev) {
+      var msg = ev.data;
+      var jobId = msg.jobId;
+      decodeBitmap(new Blob([msg.buffer], { type: msg.type || "application/octet-stream" }))
+        .then(function (bmp) {
+          var w = bmp.width;
+          var h = bmp.height;
+          var canvas = new OffscreenCanvas(w, h);
+          var ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(bmp, 0, 0);
+          bmp.close();
+          var img = ctx.getImageData(0, 0, w, h);
+          var result = api.process(img.data, w, h, msg.settings);
+          var spec = api.outputSpec(msg.name, api.hasAlpha(img.data));
+          var out = new OffscreenCanvas(result.width, result.height);
+          var octx = out.getContext("2d");
+          octx.putImageData(new ImageData(result.data, result.width, result.height), 0, 0);
+          var opts = { type: spec.mime };
+          if (spec.mime === "image/jpeg" || spec.mime === "image/webp") opts.quality = 0.95;
+          return out.convertToBlob(opts).then(function (blob) {
+            return blob.arrayBuffer().then(function (buf) {
+              self.postMessage({
+                jobId: jobId,
+                ok: true,
+                buffer: buf,
+                mime: spec.mime,
+                outName: spec.outName,
+                width: result.width,
+                height: result.height
+              }, [buf]);
+            });
+          });
+        })
+        .catch(function (err) {
+          self.postMessage({
+            jobId: jobId,
+            ok: false,
+            error: String(err && err.message ? err.message : err)
+          });
+        });
+    };
+  }
+
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(u8) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function dosDateTime(d) {
+    return {
+      time: ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xffff,
+      date: (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff
+    };
+  }
+
+  function buildZipStore(files) {
+    var enc = new TextEncoder();
+    var now = dosDateTime(new Date());
+    var locals = [];
+    var centrals = [];
+    var offset = 0;
+    for (var i = 0; i < files.length; i++) {
+      var nameBytes = enc.encode(files[i].name.replace(/\\/g, "/"));
+      var data = files[i].data;
+      var crc = crc32(data);
+      var local = new Uint8Array(30 + nameBytes.length);
+      var lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0x0800, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, now.time, true);
+      lv.setUint16(12, now.date, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, data.length, true);
+      lv.setUint32(22, data.length, true);
+      lv.setUint16(26, nameBytes.length, true);
+      local.set(nameBytes, 30);
+      locals.push(local, data);
+
+      var central = new Uint8Array(46 + nameBytes.length);
+      var cv = new DataView(central.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0x0800, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, now.time, true);
+      cv.setUint16(14, now.date, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, data.length, true);
+      cv.setUint32(24, data.length, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint32(42, offset, true);
+      central.set(nameBytes, 46);
+      centrals.push(central);
+      offset += local.length + data.length;
+    }
+    var centralSize = 0;
+    for (var c = 0; c < centrals.length; c++) centralSize += centrals[c].length;
+    var eocd = new Uint8Array(22);
+    var ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+    return new Blob(locals.concat(centrals, [eocd]), { type: "application/zip" });
+  }
+
+  function uniqueNames(items) {
+    var used = new Set();
+    return items.map(function (it) {
+      var name = it.outName;
+      if (!used.has(name)) {
+        used.add(name);
+        return name;
+      }
+      var dot = name.lastIndexOf(".");
+      var base = dot === -1 ? name : name.slice(0, dot);
+      var ext = dot === -1 ? "" : name.slice(dot);
+      var n = 2;
+      var cand = base + "_" + n + ext;
+      while (used.has(cand)) {
+        n += 1;
+        cand = base + "_" + n + ext;
+      }
+      used.add(cand);
+      return cand;
+    });
+  }
+
+  function downloadBlob(blob, filename) {
+    var a = document.createElement("a");
+    var url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function fmtSize2(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1048576).toFixed(2) + " MB";
+  }
+
+  function readSettings() {
+    var ksize = parseInt(document.getElementById("ksize").value, 10) || 3;
+    if (ksize % 2 === 0) ksize += 1;
+    return {
+      method: document.getElementById("method").value,
+      chromaSigma: parseFloat(document.getElementById("chromaSigma").value) || 2,
+      scale: parseFloat(document.getElementById("scale").value) || 0.5,
+      ksize: ksize,
+      sigma: parseFloat(document.getElementById("sigma").value) || 1
+    };
+  }
+
+  var processor = createProcessor();
+  var worker = null;
+  if (typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined") {
+    try {
+      var src = createProcessor.toString() + "\n(" + workerMain.toString() + ")();";
+      worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+      worker.onerror = function () { worker = null; };
+    } catch (e) {
+      worker = null;
+    }
+  }
+
+  var items = [];
+  var jobSeq = 0;
+  var running = false;
+
+  var els = {
+    method: document.getElementById("method"),
+    hint: document.getElementById("methodHint"),
+    paramRow: document.getElementById("paramRow"),
+    paramChroma: document.getElementById("paramChroma"),
+    paramKsize: document.getElementById("paramKsize"),
+    paramScale: document.getElementById("paramScale"),
+    paramSigma: document.getElementById("paramSigma"),
+    file: document.getElementById("file"),
+    drop: document.getElementById("drop"),
+    list: document.getElementById("list"),
+    count: document.getElementById("countLabel"),
+    run: document.getElementById("runBtn"),
+    dl: document.getElementById("dlBtn"),
+    clear: document.getElementById("clearBtn"),
+    progress: document.getElementById("progress"),
+    empty: document.getElementById("emptyHint"),
+    filesPanel: document.getElementById("filesPanel"),
+    layout: document.querySelector(".layout")
+  };
+
+  function syncParams() {
+    var m = els.method.value;
+    els.hint.textContent = HINTS[m] || "";
+    var chroma = m === "screen" || m === "chroma";
+    var ksize = m === "screen" || m === "median";
+    els.paramChroma.hidden = !chroma;
+    els.paramKsize.hidden = !ksize;
+    els.paramRow.hidden = !chroma && !ksize;
+    els.paramRow.classList.toggle("row-2", chroma && ksize);
+    els.paramScale.hidden = m !== "downscale";
+    els.paramSigma.hidden = m !== "gaussian";
+    invalidateOutputs();
+  }
+
+  function invalidateOutputs() {
+    items.forEach(function (it) {
+      it.status = "wait";
+      it.error = "";
+      it.outBlob = null;
+      it.outName = "";
+    });
+    renderList();
+  }
+
+  function setFiles(fileList, append) {
+    var next = append ? items.slice() : [];
+    Array.prototype.forEach.call(fileList, function (file) {
+      if (!file.type || file.type.indexOf("image/") === 0 || /\.(jpe?g|png|webp|bmp)$/i.test(file.name)) {
+        next.push({
+          id: ++jobSeq,
+          file: file,
+          status: "wait",
+          error: "",
+          outBlob: null,
+          outName: "",
+          width: 0,
+          height: 0
+        });
+      }
+    });
+    items = next;
+    renderList();
+  }
+
+  function renderList() {
+    var done = items.filter(function (it) { return it.status === "ok" && it.outBlob; });
+    els.count.textContent = items.length ? (items.length + " 枚") : "まだ選択されていません";
+    els.clear.disabled = !items.length || running;
+    els.run.disabled = !items.length || running;
+    els.run.textContent = running ? "処理中…" : "処理して保存";
+    els.dl.disabled = running || !done.length;
+    els.drop.classList.toggle("compact", items.length > 0);
+    if (els.empty) els.empty.hidden = items.length > 0;
+    if (els.filesPanel) els.filesPanel.hidden = items.length === 0;
+    if (els.layout) els.layout.classList.toggle("has-files", items.length > 0);
+    els.list.innerHTML = items.map(function (it) {
+      var st = "wait";
+      var label = "待機";
+      if (it.status === "run") { st = "run"; label = "処理中"; }
+      if (it.status === "ok") { st = "ok"; label = "完了"; }
+      if (it.status === "err") { st = "err"; label = "失敗"; }
+      var meta = fmtSize2(it.file.size);
+      if (it.status === "ok" && it.width) meta += " → " + it.width + "×" + it.height;
+      if (it.status === "err" && it.error) meta = it.error;
+      return (
+        '<li><div><div class="name" title="' + escapeHtml(it.file.name) + '">' + escapeHtml(it.file.name) +
+        '</div><div class="meta">' + escapeHtml(meta) + "</div></div>" +
+        '<div class="status ' + st + '">' + label + "</div></li>"
+      );
+    }).join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function setProgress(i, total) {
+    var bar = els.progress;
+    if (!total) {
+      bar.classList.remove("on");
+      bar.firstElementChild.style.width = "0%";
+      return;
+    }
+    bar.classList.add("on");
+    bar.firstElementChild.style.width = Math.round((i / total) * 100) + "%";
+  }
+
+  function processWithWorker(item, settings) {
+    return item.file.arrayBuffer().then(function (buffer) {
+      return new Promise(function (resolve, reject) {
+        var jobId = item.id;
+        function onMsg(ev) {
+          if (!ev.data || ev.data.jobId !== jobId) return;
+          worker.removeEventListener("message", onMsg);
+          worker.removeEventListener("error", onErr);
+          if (ev.data.ok) resolve(ev.data);
+          else reject(new Error(ev.data.error || "処理に失敗しました"));
+        }
+        function onErr() {
+          worker.removeEventListener("message", onMsg);
+          worker.removeEventListener("error", onErr);
+          worker = null;
+          reject(new Error("WORKER_FALLBACK"));
+        }
+        worker.addEventListener("message", onMsg);
+        worker.addEventListener("error", onErr);
+        try {
+          worker.postMessage({
+            jobId: jobId,
+            buffer: buffer,
+            type: item.file.type,
+            name: item.file.name,
+            settings: settings
+          }, [buffer]);
+        } catch (err) {
+          onErr();
+        }
+      });
+    });
+  }
+
+  function decodeFile(file) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(file, { imageOrientation: "from-image" }).catch(function () {
+        return createImageBitmap(file);
+      });
+    }
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error("画像を読み込めませんでした"));
+      };
+      img.src = url;
+    });
+  }
+
+  function processOnMain(item, settings) {
+    var api = processor;
+    return decodeFile(item.file).then(function (bmp) {
+      var canvas = document.createElement("canvas");
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      var ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0);
+      if (bmp.close) bmp.close();
+      var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var result = api.process(img.data, canvas.width, canvas.height, settings);
+      var spec = api.outputSpec(item.file.name, api.hasAlpha(img.data));
+      canvas.width = result.width;
+      canvas.height = result.height;
+      ctx.putImageData(new ImageData(result.data, result.width, result.height), 0, 0);
+      return new Promise(function (resolve, reject) {
+        var q = (spec.mime === "image/jpeg" || spec.mime === "image/webp") ? 0.95 : undefined;
+        canvas.toBlob(function (blob) {
+          if (!blob) reject(new Error("画像の書き出しに失敗しました"));
+          else resolve({
+            ok: true,
+            blob: blob,
+            mime: spec.mime,
+            outName: spec.outName,
+            width: result.width,
+            height: result.height
+          });
+        }, spec.mime, q);
+      });
+    });
+  }
+
+  function runAll() {
+    if (running || !items.length) return;
+    running = true;
+    var settings = readSettings();
+    items.forEach(function (it) {
+      it.status = "wait";
+      it.error = "";
+      it.outBlob = null;
+    });
+    renderList();
+    setProgress(0, items.length);
+
+    var i = 0;
+    function next() {
+      if (i >= items.length) {
+        running = false;
+        setProgress(0, 0);
+        renderList();
+        var ok = items.filter(function (it) { return it.status === "ok"; });
+        if (ok.length) tryDownload();
+        return Promise.resolve();
+      }
+      var item = items[i];
+      item.status = "run";
+      renderList();
+      var work = worker
+        ? processWithWorker(item, settings).catch(function (err) {
+            if (!worker || (err && err.message === "WORKER_FALLBACK")) {
+              return processOnMain(item, settings);
+            }
+            throw err;
+          })
+        : processOnMain(item, settings);
+      return work.then(function (res) {
+        item.status = "ok";
+        item.outName = res.outName;
+        item.width = res.width;
+        item.height = res.height;
+        item.outBlob = res.blob || new Blob([res.buffer], { type: res.mime });
+      }).catch(function (err) {
+        item.status = "err";
+        item.error = err && err.message ? err.message : String(err);
+      }).then(function () {
+        i += 1;
+        setProgress(i, items.length);
+        renderList();
+        return next();
+      });
+    }
+    return next().catch(function () {
+      running = false;
+      renderList();
+    });
+  }
+
+  function tryDownload() {
+    var done = items.filter(function (it) { return it.status === "ok" && it.outBlob; });
+    if (!done.length) return;
+    if (done.length === 1) {
+      downloadBlob(done[0].outBlob, done[0].outName);
+      return;
+    }
+    Promise.all(done.map(function (it) {
+      return it.outBlob.arrayBuffer().then(function (buf) {
+        return { name: it.outName, data: new Uint8Array(buf) };
+      });
+    })).then(function (files) {
+      var names = uniqueNames(files.map(function (f) { return { outName: f.name }; }));
+      for (var i = 0; i < files.length; i++) files[i].name = names[i];
+      downloadBlob(buildZipStore(files), "demoire.zip");
+    });
+  }
+
+  els.method.addEventListener("change", syncParams);
+  ["chromaSigma", "ksize", "scale", "sigma"].forEach(function (id) {
+    document.getElementById(id).addEventListener("change", invalidateOutputs);
+  });
+  els.file.addEventListener("change", function () {
+    setFiles(els.file.files, false);
+  });
+  els.drop.addEventListener("click", function () { els.file.click(); });
+  els.drop.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      els.file.click();
+    }
+  });
+  els.drop.addEventListener("dragover", function (e) {
+    e.preventDefault();
+    els.drop.classList.add("over");
+  });
+  els.drop.addEventListener("dragleave", function () { els.drop.classList.remove("over"); });
+  els.drop.addEventListener("drop", function (e) {
+    e.preventDefault();
+    els.drop.classList.remove("over");
+    if (e.dataTransfer && e.dataTransfer.files) setFiles(e.dataTransfer.files, true);
+  });
+  els.clear.addEventListener("click", function () {
+    items = [];
+    els.file.value = "";
+    setProgress(0, 0);
+    renderList();
+  });
+  els.run.addEventListener("click", runAll);
+  els.dl.addEventListener("click", tryDownload);
+
+  syncParams();
+  renderList();
+})();
+  </script>
+</body>
+</html>

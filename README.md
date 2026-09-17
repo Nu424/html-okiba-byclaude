@@ -7,3 +7,4 @@ Claudeさんとつくったhtml置き場
 - [hitasura-henkan.html](https://nu424.github.io/html-okiba-byclaude/hitasura-henkan.html): タイポや変換を気にせず打ち込んだ文章を、AIで正しい日本語に整える流し込み変換。
 - [swipe-decision.html](https://nu424.github.io/html-okiba-byclaude/swipe-decision.html): 判断したいことをCSVで読み込み、スワイプで決めて結果入りCSVを書き出すデッキ。
 - [atomic-orbitals-3d.html](https://nu424.github.io/html-okiba-byclaude/atomic-orbitals-3d.html): 水素型原子軌道（n=1〜5、s/p/d/f）を点群で3D表示するエクスプローラ。
+- [demoire.html](https://nu424.github.io/html-okiba-byclaude/demoire.html): 液晶画面を撮ったときの色にじみや格子縞を、ブラウザ内だけで抑えるモアレ低減。
