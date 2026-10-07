@@ -8,3 +8,4 @@ Claudeさんとつくったhtml置き場
 - [swipe-decision.html](https://nu424.github.io/html-okiba-byclaude/swipe-decision.html): 判断したいことをCSVで読み込み、スワイプで決めて結果入りCSVを書き出すデッキ。
 - [atomic-orbitals-3d.html](https://nu424.github.io/html-okiba-byclaude/atomic-orbitals-3d.html): 水素型原子軌道（n=1〜5、s/p/d/f）を点群で3D表示するエクスプローラ。
 - [demoire.html](https://nu424.github.io/html-okiba-byclaude/demoire.html): 液晶画面を撮ったときの色にじみや格子縞を、ブラウザ内だけで抑えるモアレ低減。
+- [timedifference-dial.html](https://nu424.github.io/html-okiba-byclaude/timedifference-dial.html): 2都市の一日ダイヤルを回して、時差と相手の時刻を見くらべる。

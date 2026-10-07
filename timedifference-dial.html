@@ -1,0 +1,845 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>時差ダイヤル</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+/* Layout: two sun-path dials side by side (stacked on phones), joined by the time-difference readout.
+   Each dial is one day: noon at the top, midnight at the bottom, the sun travels clockwise. */
+:root{
+  --bg:#EEF0F6; --plate:#FBFCFE; --ink:#1B1E3A; --muted:#666C8C; --line:#D5D9E6;
+  --accent:#3F3CB0; --now:#F0553A; --shadow:rgba(27,30,58,.16); --scrim:rgba(20,22,45,.45);
+  /* the dials keep their own sky colours in both themes */
+  --sky-ink-day:#141833; --sky-ink-night:#FFFFFF; --knob:#FFF9EA; --sun:#F29A2E; --moon:#3B3F8C; --tick:rgba(255,255,255,.72);
+  --font-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;
+  --font-num:"Bricolage Grotesque","Zen Maru Gothic","Hiragino Sans",ui-rounded,system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D0F1F; --plate:#171A31; --ink:#ECEEFA; --muted:#969CBD; --line:#2B2F50;
+    --accent:#B3B0FF; --now:#FF7A5C; --shadow:rgba(0,0,0,.5); --scrim:rgba(0,0,0,.6); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D0F1F; --plate:#171A31; --ink:#ECEEFA; --muted:#969CBD; --line:#2B2F50;
+  --accent:#B3B0FF; --now:#FF7A5C; --shadow:rgba(0,0,0,.5); --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-weight:500;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.app{max-width:980px;margin-inline:auto;padding-inline:16px;padding-block:18px 28px;display:flex;flex-direction:column;gap:16px}
+
+/* ---------- top bar ---------- */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px}
+.top-id{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;min-width:0}
+h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.06em;text-wrap:balance}
+.status{margin:0;display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--muted)}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--now);flex:none}
+.status.live .pulse{animation:pulse 2s ease-in-out infinite}
+.status:not(.live) .pulse{background:var(--muted);opacity:.5}
+@keyframes pulse{50%{transform:scale(1.5);opacity:.45}}
+.top-actions{display:flex;align-items:center;gap:8px}
+.pill-btn{padding:6px 16px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);font-weight:700;font-size:14px}
+.pill-btn:disabled{background:transparent;color:var(--muted);border-color:var(--line);cursor:default}
+.icon-btn{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--plate);color:var(--ink);padding:0}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- stage ---------- */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px 18px}
+.zone{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.zhead{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;max-width:100%}
+.city{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:4px 10px 4px 16px;border-radius:999px;border:1px solid var(--line);background:var(--plate);font-size:19px;font-weight:700;line-height:1.5}
+.city-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.city svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--muted);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.meta{margin:0;font-size:12.5px;color:var(--muted);letter-spacing:.03em;text-align:center}
+
+.dial{position:relative;width:min(100%,380px,max(240px,62svh));aspect-ratio:1;max-width:100%;margin-top:4px;border-radius:50%;container-type:inline-size;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab}
+.dial.is-drag{cursor:grabbing}
+.plate{position:absolute;inset:6%;border-radius:50%;background:var(--plate);box-shadow:0 12px 32px var(--shadow),inset 0 0 0 1px var(--line)}
+.ring{position:absolute;inset:8%;border-radius:50%;
+  -webkit-mask:radial-gradient(closest-side,transparent calc(76.19% - .6px),#000 76.19%);
+          mask:radial-gradient(closest-side,transparent calc(76.19% - .6px),#000 76.19%)}
+.sky{position:absolute;inset:22%;border-radius:50%;overflow:hidden;display:grid;place-items:center;
+  background:radial-gradient(circle at 50% 22%,var(--c2,#7cc6f5),var(--c,#54b4f2) 72%);
+  color:var(--sky-ink-night);transition:color .2s;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.sky.is-light{color:var(--sky-ink-day)}
+.stars{position:absolute;inset:0;opacity:var(--night,0);
+  background-image:
+   radial-gradient(circle at 18% 30%,#fff 0 1px,transparent 1.7px),radial-gradient(circle at 30% 14%,#fff 0 .8px,transparent 1.5px),
+   radial-gradient(circle at 52% 8%,#fff 0 1.1px,transparent 1.8px),radial-gradient(circle at 73% 16%,#fff 0 .8px,transparent 1.5px),
+   radial-gradient(circle at 86% 34%,#fff 0 1px,transparent 1.7px),radial-gradient(circle at 92% 55%,#fff 0 .7px,transparent 1.4px),
+   radial-gradient(circle at 80% 78%,#fff 0 1px,transparent 1.7px),radial-gradient(circle at 60% 90%,#fff 0 .8px,transparent 1.5px),
+   radial-gradient(circle at 38% 88%,#fff 0 1.1px,transparent 1.8px),radial-gradient(circle at 16% 72%,#fff 0 .8px,transparent 1.5px),
+   radial-gradient(circle at 8% 50%,#fff 0 1px,transparent 1.7px),radial-gradient(circle at 44% 22%,#fff 0 .6px,transparent 1.3px),
+   radial-gradient(circle at 66% 76%,#fff 0 .6px,transparent 1.3px)}
+.readout{position:relative;display:flex;flex-direction:column;align-items:center;gap:1.6cqw;text-align:center}
+.date{font-size:max(11px,4.3cqw);font-weight:700;line-height:1.2;white-space:nowrap}
+.date b{font-weight:700;opacity:.8;margin-right:.3em}
+.time{font-family:var(--font-num);font-weight:700;font-size:16cqw;line-height:.95;white-space:nowrap}
+.time .d{display:inline-block;width:.58em;text-align:center}
+.time .c{display:inline-block;width:.28em;text-align:center;position:relative;top:-.06em}
+.badge{font-size:max(10.5px,3.9cqw);font-weight:700;line-height:1.5;padding:0 .9em;border-radius:999px;border:1.5px solid transparent;white-space:nowrap}
+.badge.same{opacity:.78}
+.badge.off{background:currentColor;border-color:currentColor}
+.badge.off span{color:var(--c)}
+.badge.blank{visibility:hidden}
+
+.marks{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.tick{stroke:var(--tick);stroke-width:1.6;stroke-linecap:round}
+.tick.big{stroke-width:2.6}
+.lbl{font-family:var(--font-num);font-size:13.5px;font-weight:500;fill:var(--muted)}
+.lbl.main{font-size:16.5px;font-weight:700;fill:var(--ink)}
+.overlap{fill:none;stroke:var(--ink);stroke-width:5;stroke-linecap:round;opacity:.8}
+.nowdot{fill:var(--now);stroke:#fff;stroke-width:2.2}
+.knob{transform-box:fill-box;transform-origin:center;transition:transform .18s cubic-bezier(.3,1.6,.5,1);filter:drop-shadow(0 2px 4px rgba(0,0,0,.38))}
+.dial.is-drag .knob{transform:scale(1.16)}
+.knob-bg{fill:var(--knob)}
+.sun circle{fill:var(--sun)}
+.sun line{stroke:var(--sun);stroke-width:2.6;stroke-linecap:round}
+.moon{fill:var(--moon)}
+.sun,.moon{transition:opacity .25s}
+.dial.is-day .moon,.dial:not(.is-day) .sun{opacity:0}
+
+/* ---------- time difference ---------- */
+.link{display:flex;flex-direction:column;align-items:center;gap:8px;width:148px;text-align:center}
+.diff-block{display:flex;flex-direction:column;align-items:center;gap:8px}
+.link-actions{display:flex;gap:6px}
+.cap-short{display:none}
+#copyIconBtn{display:none}
+.diff{font-family:var(--font-num);font-weight:700;font-size:44px;line-height:1;white-space:nowrap}
+.diff small{font-family:var(--font-body);font-size:15px;font-weight:700;margin-inline:2px}
+.diff-cap{margin:0;font-size:13px;color:var(--muted);line-height:1.5;text-wrap:balance}
+
+/* ---------- summary + hints ---------- */
+.summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px;padding:10px 14px;border:1px dashed var(--line);border-radius:16px}
+.summary output{font-weight:700;font-variant-numeric:tabular-nums;user-select:all;-webkit-user-select:all;text-align:center;min-width:0;overflow-wrap:anywhere}
+.ghost-btn{padding:4px 14px;border-radius:999px;border:1px solid var(--line);background:var(--plate);font-size:13.5px;font-weight:700}
+.hints{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 22px;font-size:12.5px;color:var(--muted)}
+.hints li{display:inline-flex;align-items:center;gap:7px}
+.hints svg{flex:none}
+.sw-now{fill:var(--now)}
+.sw-over{stroke:var(--ink);stroke-width:4;stroke-linecap:round;opacity:.8}
+
+/* ---------- sheets ---------- */
+.overlay{position:fixed;inset:0;z-index:10;display:grid;place-items:end center;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));padding-top:calc(12px + env(safe-area-inset-top,0px));background:var(--scrim)}
+.panel{width:min(100%,440px);max-height:min(100%,640px);display:flex;flex-direction:column;overflow:hidden;background:var(--plate);border:1px solid var(--line);border-radius:22px;box-shadow:0 20px 60px var(--shadow)}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 14px 10px 20px}
+.panel-head h2{margin:0;font-size:16px;font-weight:700}
+.panel-body{display:flex;flex-direction:column;gap:12px;min-height:0;padding:0 14px 16px}
+.search{width:100%;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-size:16px}
+.tz-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0;overscroll-behavior:contain}
+.tz-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:8px 12px;border:0;border-radius:12px;background:transparent;text-align:left}
+.tz-row:hover{background:var(--bg)}
+.tz-row.current{background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.tz-name{min-width:0;font-weight:700;overflow-wrap:anywhere}
+.tz-name small,.tz-time small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+.tz-time{flex:none;text-align:right;font-family:var(--font-num);font-weight:700;font-variant-numeric:tabular-nums}
+.tz-time small{font-family:var(--font-body)}
+.empty{margin:0;padding:18px 8px;color:var(--muted);text-align:center}
+.set-group{display:flex;flex-direction:column;gap:6px}
+.set-label{margin:0;font-size:12.5px;color:var(--muted);letter-spacing:.06em}
+.set-zone{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--bg);text-align:left;font-weight:700}
+.set-zone small{font-weight:500;color:var(--muted);font-size:12.5px}
+.seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;border-radius:999px;background:var(--bg);border:1px solid var(--line)}
+.seg label{position:relative;display:block;text-align:center}
+.seg input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.seg span{display:block;padding:5px 0;border-radius:999px;font-size:14px;font-weight:700;color:var(--muted)}
+.seg input:checked + span{background:var(--ink);color:var(--bg)}
+.seg input:focus-visible + span{outline:3px solid var(--accent);outline-offset:2px}
+.check{display:flex;align-items:center;gap:10px;padding:6px 4px}
+.check input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;max-width:calc(100% - 32px);width:max-content;padding:8px 18px;border-radius:18px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:700;line-height:1.5;text-align:center;white-space:pre-line;user-select:text;-webkit-user-select:text}
+
+.howto{display:none}
+.howto ul{margin:0;padding:0 4px;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:13.5px}
+.howto li{display:flex;align-items:center;gap:8px}
+.howto svg{flex:none}
+@media (min-width:600px){ .overlay{place-items:center} }
+@media (max-width:760px){
+  /* Phone: one screen. The two dials split the height. Zone labels sit in the dials' empty corners
+     (first zone above, second below), and the difference + actions sit in the waist between the circles. */
+  html,body{height:100%}
+  .app{height:100%;min-height:500px;gap:8px;padding-block:10px 12px}
+  .top{flex-wrap:nowrap}
+  .top-id{flex-direction:column;align-items:flex-start;gap:0}
+  h1{font-size:18px;line-height:1.35}
+  .status{font-size:12.5px;line-height:1.4}
+  .summary,.hints{display:none}
+  .howto{display:flex}
+  .stage{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:3px;width:100%;max-width:430px;margin-inline:auto}
+  .zone{flex:1 1 0;min-height:0;width:100%;container-type:size;gap:0;justify-content:flex-end}
+  .zone-b{flex-direction:column-reverse}
+  .zhead{flex:none;position:relative;z-index:1;width:100%;max-width:none;height:32px;flex-direction:row;justify-content:space-between;gap:12px;pointer-events:none}
+  .zone-a .zhead{margin-bottom:-14px}
+  .zone-b .zhead{margin-top:-14px}
+  .city{pointer-events:auto;max-width:44%;font-size:15px;padding:2px 6px 2px 12px}
+  .meta{max-width:42%;font-size:11.5px;line-height:1.35;text-align:right}
+  .meta span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta .meta-sep{display:none}
+  .dial{flex:none;width:min(100cqw,100cqh - 18px);margin-top:0}
+  .link{flex:none;position:relative;z-index:1;display:block;width:100%;height:0;pointer-events:none}
+  .diff-block{position:absolute;left:0;top:0;transform:translateY(-50%);align-items:flex-start;gap:2px;text-align:left}
+  .diff{font-size:28px}
+  .diff small{font-size:13px;margin-inline:1px}
+  .diff.long{font-size:21px}
+  .diff.long small{font-size:11.5px}
+  .diff-cap{font-size:11.5px;line-height:1.4}
+  .cap-long{display:none}
+  .cap-short{display:inline}
+  .link-actions{position:absolute;right:0;top:0;transform:translateY(-50%);pointer-events:auto}
+  .link-actions .icon-btn{width:36px;height:36px}
+  #copyIconBtn{display:grid}
+  #swapBtn svg{transform:rotate(90deg)}
+}
+@media (prefers-reduced-motion: reduce){
+  .status.live .pulse{animation:none}
+  .knob,.sun,.moon,.sky{transition:none}
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="top-id">
+      <h1>時差ダイヤル</h1>
+      <p class="status live" id="status" aria-live="polite"><span class="pulse"></span><span id="statusText">いまの時刻</span></p>
+    </div>
+    <div class="top-actions">
+      <button class="pill-btn" id="nowBtn" type="button" disabled>いまに戻す</button>
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="設定">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.6"/><circle cx="8" cy="17" r="2.6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage"></main>
+
+  <div class="summary">
+    <output id="summary"></output>
+    <button class="ghost-btn" id="copyBtn" type="button">コピー</button>
+  </div>
+
+  <ul class="hints">
+    <li>色のリングをなぞる・タップで時刻を合わせる</li>
+    <li>ぐるっと一周で日付がめくれる</li>
+    <li><svg width="12" height="12" aria-hidden="true"><circle class="sw-now" cx="6" cy="6" r="5"/></svg>いまの時刻</li>
+    <li id="overlapHint"><svg width="22" height="8" aria-hidden="true"><line class="sw-over" x1="3" y1="4" x2="19" y2="4"/></svg>相手が 9〜18時 のあいだ</li>
+  </ul>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+    <div class="panel-head">
+      <h2 id="panelTitle"></h2>
+      <button class="icon-btn" id="closePanel" type="button" aria-label="閉じる">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="panel-body" id="pickerView" hidden>
+      <input class="search" id="tzSearch" type="search" placeholder="都市・国でさがす（例: ロンドン、india）" autocomplete="off" aria-label="タイムゾーンをさがす">
+      <div class="tz-list" id="tzList"></div>
+    </div>
+
+    <div class="panel-body" id="settingsView" hidden>
+      <div class="set-group">
+        <p class="set-label">タイムゾーン</p>
+        <button class="set-zone" id="setZone0" type="button"></button>
+        <button class="set-zone" id="setZone1" type="button"></button>
+      </div>
+      <div class="set-group">
+        <p class="set-label">回すときのきざみ</p>
+        <div class="seg" role="radiogroup" aria-label="回すときのきざみ">
+          <label><input type="radio" name="step" id="step5" value="5"><span>5分</span></label>
+          <label><input type="radio" name="step" id="step15" value="15"><span>15分</span></label>
+          <label><input type="radio" name="step" id="step30" value="30"><span>30分</span></label>
+          <label><input type="radio" name="step" id="step60" value="60"><span>1時間</span></label>
+        </div>
+      </div>
+      <div class="set-group">
+        <label class="check"><input type="checkbox" id="optOverlap"><span>相手が 9〜18時 のあいだを内側の線で示す</span></label>
+        <label class="check"><input type="checkbox" id="optSound"><span>回すとカチカチ鳴らす</span></label>
+      </div>
+      <div class="set-group howto">
+        <p class="set-label">使い方</p>
+        <ul>
+          <li>色のリングをなぞる・タップで時刻を合わせる</li>
+          <li>ぐるっと一周で日付がめくれる</li>
+          <li><svg width="12" height="12" aria-hidden="true"><circle class="sw-now" cx="6" cy="6" r="5"/></svg>いまの時刻</li>
+          <li id="overlapHint2"><svg width="22" height="8" aria-hidden="true"><line class="sw-over" x1="3" y1="4" x2="19" y2="4"/></svg>相手が 9〜18時 のあいだ</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const DAY = 864e5, HOUR = 36e5, MIN = 6e4, MS_PER_DEG = DAY / 360;
+const WD = '日月火水木金土';
+const STORE = 'jisa-dial-v1';
+
+/* sky colour through one day: [hour, [r,g,b]] */
+const SKY = [[0,[10,14,44]],[4,[22,28,78]],[5,[58,48,112]],[5.75,[150,84,128]],[6.5,[244,150,108]],[7.5,[250,205,140]],
+  [9,[158,214,240]],[12,[84,180,242]],[15,[98,172,234]],[16.4,[150,198,232]],[17,[255,222,150]],[17.5,[252,176,92]],[18,[243,134,72]],
+  [18.75,[214,84,96]],[19.5,[120,62,130]],[20.5,[44,40,104]],[22,[18,24,68]],[24,[10,14,44]]];
+
+/* [tz, 表示名, 国・地域, 検索用キーワード] */
+const CITIES = [
+ ['Asia/Tokyo','東京','日本','tokyo japan osaka 大阪 jst'],
+ ['Asia/Seoul','ソウル','韓国','seoul korea kst'],
+ ['Asia/Shanghai','北京・上海','中国','beijing shanghai china ペキン シャンハイ 深セン'],
+ ['Asia/Hong_Kong','香港','香港','hong kong ホンコン'],
+ ['Asia/Taipei','台北','台湾','taipei taiwan タイペイ'],
+ ['Asia/Manila','マニラ','フィリピン','manila philippines セブ'],
+ ['Asia/Singapore','シンガポール','シンガポール','singapore'],
+ ['Asia/Kuala_Lumpur','クアラルンプール','マレーシア','kuala lumpur malaysia'],
+ ['Asia/Bangkok','バンコク','タイ','bangkok thailand'],
+ ['Asia/Ho_Chi_Minh','ホーチミン・ハノイ','ベトナム','ho chi minh hanoi vietnam saigon'],
+ ['Asia/Jakarta','ジャカルタ','インドネシア','jakarta indonesia'],
+ ['Asia/Dhaka','ダッカ','バングラデシュ','dhaka bangladesh'],
+ ['Asia/Kathmandu','カトマンズ','ネパール','kathmandu nepal'],
+ ['Asia/Kolkata','デリー・ムンバイ','インド','delhi mumbai india kolkata bangalore ベンガルール ist'],
+ ['Asia/Karachi','カラチ','パキスタン','karachi pakistan'],
+ ['Asia/Dubai','ドバイ','アラブ首長国連邦','dubai uae abu dhabi アブダビ'],
+ ['Asia/Tehran','テヘラン','イラン','tehran iran'],
+ ['Asia/Riyadh','リヤド','サウジアラビア','riyadh saudi'],
+ ['Asia/Jerusalem','テルアビブ','イスラエル','tel aviv jerusalem israel エルサレム'],
+ ['Europe/Istanbul','イスタンブール','トルコ','istanbul turkey türkiye'],
+ ['Europe/Moscow','モスクワ','ロシア','moscow russia'],
+ ['Europe/Kyiv','キーウ','ウクライナ','kyiv kiev ukraine キエフ'],
+ ['Europe/Helsinki','ヘルシンキ','フィンランド','helsinki finland'],
+ ['Europe/Athens','アテネ','ギリシャ','athens greece'],
+ ['Europe/Stockholm','ストックホルム','スウェーデン','stockholm sweden'],
+ ['Europe/Berlin','ベルリン','ドイツ','berlin germany frankfurt munich フランクフルト ミュンヘン cet'],
+ ['Europe/Zurich','チューリッヒ','スイス','zurich switzerland geneva ジュネーブ'],
+ ['Europe/Rome','ローマ','イタリア','rome italy milan ミラノ'],
+ ['Europe/Amsterdam','アムステルダム','オランダ','amsterdam netherlands'],
+ ['Europe/Paris','パリ','フランス','paris france'],
+ ['Europe/Madrid','マドリード','スペイン','madrid spain barcelona バルセロナ'],
+ ['Europe/London','ロンドン','イギリス','london uk england britain 英国 gmt bst'],
+ ['Europe/Dublin','ダブリン','アイルランド','dublin ireland'],
+ ['Europe/Lisbon','リスボン','ポルトガル','lisbon portugal'],
+ ['Atlantic/Reykjavik','レイキャビク','アイスランド','reykjavik iceland'],
+ ['Africa/Cairo','カイロ','エジプト','cairo egypt'],
+ ['Africa/Lagos','ラゴス','ナイジェリア','lagos nigeria'],
+ ['Africa/Nairobi','ナイロビ','ケニア','nairobi kenya'],
+ ['Africa/Johannesburg','ヨハネスブルグ','南アフリカ','johannesburg south africa'],
+ ['America/Sao_Paulo','サンパウロ','ブラジル','sao paulo brazil rio リオ'],
+ ['America/Argentina/Buenos_Aires','ブエノスアイレス','アルゼンチン','buenos aires argentina'],
+ ['America/Santiago','サンティアゴ','チリ','santiago chile'],
+ ['America/Bogota','ボゴタ','コロンビア','bogota colombia'],
+ ['America/Lima','リマ','ペルー','lima peru'],
+ ['America/Mexico_City','メキシコシティ','メキシコ','mexico city'],
+ ['America/New_York','ニューヨーク','アメリカ東部','new york nyc usa 米国 boston washington ボストン ワシントン マイアミ est edt eastern'],
+ ['America/Toronto','トロント','カナダ東部','toronto canada montreal モントリオール'],
+ ['America/Chicago','シカゴ','アメリカ中部','chicago usa 米国 dallas houston ダラス ヒューストン cst cdt central'],
+ ['America/Denver','デンバー','アメリカ山岳部','denver usa 米国 salt lake mst mdt mountain'],
+ ['America/Phoenix','フェニックス','アメリカ・アリゾナ','phoenix arizona usa'],
+ ['America/Los_Angeles','ロサンゼルス','アメリカ西部','los angeles la usa 米国 san francisco seattle サンフランシスコ シアトル シリコンバレー pst pdt pacific'],
+ ['America/Vancouver','バンクーバー','カナダ西部','vancouver canada'],
+ ['America/Anchorage','アンカレッジ','アメリカ・アラスカ','anchorage alaska'],
+ ['Pacific/Honolulu','ホノルル','アメリカ・ハワイ','honolulu hawaii'],
+ ['Pacific/Guam','グアム','グアム','guam'],
+ ['Australia/Perth','パース','オーストラリア西部','perth australia'],
+ ['Australia/Adelaide','アデレード','オーストラリア中部','adelaide australia'],
+ ['Australia/Brisbane','ブリスベン','オーストラリア東部','brisbane australia'],
+ ['Australia/Sydney','シドニー','オーストラリア東部','sydney australia melbourne メルボルン canberra'],
+ ['Pacific/Fiji','フィジー','フィジー','fiji'],
+ ['Pacific/Auckland','オークランド','ニュージーランド','auckland new zealand nz wellington'],
+ ['UTC','UTC','協定世界時','utc gmt zulu'],
+];
+
+/* ---------- time zone maths ---------- */
+const fmtCache = new Map(), offCache = new Map();
+function validTz(tz){ try{ new Intl.DateTimeFormat('en-US',{timeZone:tz}); return true; }catch(e){ return false; } }
+function fmtFor(tz){
+  let f = fmtCache.get(tz);
+  if(!f){ f = new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',second:'numeric'}); fmtCache.set(tz,f); }
+  return f;
+}
+/* offset from UTC (ms) of a zone at instant t */
+function offsetMs(tz, t){
+  const key = tz + '|' + Math.floor(t / 9e5);
+  let v = offCache.get(key);
+  if(v !== undefined) return v;
+  const o = {};
+  for(const p of fmtFor(tz).formatToParts(t)) o[p.type] = p.value;
+  const sec = Math.floor(t / 1000) * 1000;
+  v = Date.UTC(+o.year, +o.month - 1, +o.day, (+o.hour) % 24, +o.minute, +o.second) - sec;
+  if(offCache.size > 4000) offCache.clear();
+  offCache.set(key, v);
+  return v;
+}
+function local(tz, t){
+  const off = offsetMs(tz, t), d = new Date(t + off);
+  return { off, y:d.getUTCFullYear(), mo:d.getUTCMonth()+1, day:d.getUTCDate(), wd:WD[d.getUTCDay()],
+           h:d.getUTCHours(), mi:d.getUTCMinutes(), dn:Math.floor((t + off) / DAY) };
+}
+function snapLocal(t, tz, stepMin){
+  const off = offsetMs(tz, t), s = stepMin * MIN;
+  return Math.round((t + off) / s) * s - off;
+}
+function utcLabel(off){
+  const m = Math.round(off / MIN);
+  if(m === 0) return 'UTC±0';
+  const a = Math.abs(m), h = Math.floor(a / 60), mm = a % 60;
+  return 'UTC' + (m > 0 ? '+' : '−') + h + (mm ? ':' + String(mm).padStart(2,'0') : '');
+}
+function isDst(tz, t){
+  const y = new Date(t).getUTCFullYear();
+  const a = offsetMs(tz, Date.UTC(y,0,1)), b = offsetMs(tz, Date.UTC(y,6,1));
+  return a !== b && offsetMs(tz, t) > Math.min(a, b);
+}
+const hhmm = (h, mi) => h + ':' + String(mi).padStart(2,'0');
+const mod = (a, n) => ((a % n) + n) % n;
+
+/* ---------- zone names ---------- */
+const cityList = CITIES.filter(c => validTz(c[0]));
+const cityByTz = new Map(cityList.map(c => [c[0], c]));
+let allTz = [];
+try{ allTz = Intl.supportedValuesOf('timeZone'); }catch(e){}
+const pretty = tz => tz.split('/').pop().replace(/_/g,' ');
+const zoneName = tz => cityByTz.has(tz) ? cityByTz.get(tz)[1] : pretty(tz);
+const zoneRegion = tz => cityByTz.has(tz) ? cityByTz.get(tz)[2] : tz.split('/')[0];
+const norm = s => s.toLowerCase().replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/[\s_・\/\-]/g,'');
+const cityKeys = new Map(cityList.map(c => [c[0], norm(c.join(' '))]));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- state ---------- */
+const nowMin = () => Math.floor(Date.now() / MIN) * MIN;
+let homeTz = 'Asia/Tokyo';
+try{ const z = Intl.DateTimeFormat().resolvedOptions().timeZone; if(z && validTz(z)) homeTz = z; }catch(e){}
+const state = {
+  zones: [homeTz, homeTz === 'America/New_York' ? 'Asia/Tokyo' : 'America/New_York'],
+  t: nowMin(), live: true, step: 15, overlap: true, sound: false,
+};
+try{
+  const s = JSON.parse(localStorage.getItem(STORE) || 'null');
+  if(s){
+    if(Array.isArray(s.z) && s.z.length === 2 && s.z.every(validTz)) state.zones = s.z;
+    if([5,15,30,60].includes(s.step)) state.step = s.step;
+    if(typeof s.overlap === 'boolean') state.overlap = s.overlap;
+    if(typeof s.sound === 'boolean') state.sound = s.sound;
+  }
+}catch(e){}
+function save(){
+  try{ localStorage.setItem(STORE, JSON.stringify({z:state.zones, step:state.step, overlap:state.overlap, sound:state.sound})); }catch(e){}
+}
+
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+let tRaw = state.t;                 // unsnapped instant while a dial is being turned
+let disp = state.t - (reduceMotion.matches ? 0 : 5 * HOUR);   // what the hands currently show
+let drag = null, inertia = null;
+const knobPos = [{x:0,y:0},{x:0,y:0}];
+
+/* ---------- build the dials ---------- */
+const $ = id => document.getElementById(id);
+const pol = (r, deg) => { const a = deg * Math.PI / 180; return [r * Math.sin(a), -r * Math.cos(a)]; };
+const hourAng = h => h * 15 - 180;      // 12:00 at the top, clockwise
+const f1 = n => n.toFixed(2);
+
+function marksSvg(){
+  let s = '';
+  for(let h = 0; h < 24; h++){
+    const big = h % 3 === 0, [x1,y1] = pol(131, hourAng(h)), [x2,y2] = pol(big ? 142 : 137, hourAng(h));
+    s += `<line class="tick${big ? ' big' : ''}" x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}"/>`;
+  }
+  for(let h = 0; h < 24; h += 3){
+    const [x,y] = pol(187, hourAng(h));
+    s += `<text class="lbl${h % 6 === 0 ? ' main' : ''}" x="${f1(x)}" y="${f1(y)}" dy=".36em" text-anchor="middle">${h}</text>`;
+  }
+  let rays = '';
+  for(let i = 0; i < 8; i++){ const [x1,y1] = pol(11.5, i * 45), [x2,y2] = pol(15.5, i * 45); rays += `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}"/>`; }
+  s += `<path class="overlap" d=""/><circle class="nowdot" r="5.5"/>`;
+  s += `<g class="handle"><g class="knob"><circle class="knob-bg" r="24"/><g class="sun"><circle r="7.5"/>${rays}</g>`
+     + `<path class="moon" d="M-3 -10.6A11 11 0 1 0 10.6 3A10 10 0 0 1 -3 -10.6Z"/></g></g>`;
+  return s;
+}
+const ringCss = 'conic-gradient(from 180deg,' + SKY.map(([h,c]) => `rgb(${c}) ${h * 15}deg`).join(',') + ')';
+const caret = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>';
+
+function zoneHtml(i){
+  return `<section class="zone ${i ? 'zone-b' : 'zone-a'}">
+    <div class="zhead">
+      <button class="city" id="city${i}" type="button"><span class="city-name"></span>${caret}</button>
+      <p class="meta" id="meta${i}"></p>
+    </div>
+    <div class="dial" id="dial${i}" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="1439">
+      <div class="plate"></div>
+      <div class="ring" style="background:${ringCss}"></div>
+      <div class="sky"><div class="stars"></div>
+        <div class="readout"><div class="date"></div><div class="time"></div><div class="badge blank"><span>同じ日</span></div></div>
+      </div>
+      <svg class="marks" viewBox="-200 -200 400 400" aria-hidden="true">${marksSvg()}</svg>
+    </div>
+  </section>`;
+}
+$('stage').innerHTML = zoneHtml(0) + `
+  <div class="link">
+    <div class="diff-block">
+      <div class="diff" id="diff"></div>
+      <p class="diff-cap" id="diffCap"></p>
+    </div>
+    <div class="link-actions">
+      <button class="icon-btn" id="swapBtn" type="button" aria-label="2つの円を入れ替える">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h12l-3-3M17 16H5l3 3"/></svg>
+      </button>
+      <button class="icon-btn" id="copyIconBtn" type="button" aria-label="この時刻をコピー">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>
+      </button>
+    </div>
+  </div>` + zoneHtml(1);
+
+const ui = [0,1].map(i => {
+  const dial = $('dial' + i);
+  return { dial, city:$('city' + i), cityName:$('city' + i).querySelector('.city-name'), meta:$('meta' + i),
+    sky:dial.querySelector('.sky'), date:dial.querySelector('.date'), time:dial.querySelector('.time'),
+    badge:dial.querySelector('.badge'), handle:dial.querySelector('.handle'),
+    overlap:dial.querySelector('.overlap'), nowdot:dial.querySelector('.nowdot') };
+});
+
+/* ---------- colour helpers ---------- */
+function skyAt(h){
+  for(let i = 1; i < SKY.length; i++){
+    if(h <= SKY[i][0]){
+      const [h0,c0] = SKY[i-1], [h1,c1] = SKY[i], k = (h - h0) / (h1 - h0);
+      return c0.map((v, j) => v + (c1[j] - v) * k);
+    }
+  }
+  return SKY[0][1];
+}
+const lin = v => { v /= 255; return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); };
+const lum = c => .2126 * lin(c[0]) + .7152 * lin(c[1]) + .0722 * lin(c[2]);
+const rgb = c => `rgb(${c.map(Math.round).join(',')})`;
+function nightness(h){
+  if(h < 4.5 || h >= 20) return 1;
+  if(h < 6.5) return (6.5 - h) / 2;
+  if(h < 18) return 0;
+  return (h - 18) / 2;
+}
+
+/* ---------- paint: everything that glides (hands, sky) ---------- */
+function paint(){
+  for(let i = 0; i < 2; i++){
+    const u = ui[i], off = offsetMs(state.zones[i], disp);
+    const hf = mod(disp + off, DAY) / HOUR;
+    const [x,y] = pol(148, hourAng(hf));
+    knobPos[i].x = x; knobPos[i].y = y;
+    u.handle.setAttribute('transform', `translate(${f1(x)} ${f1(y)})`);
+    const c = skyAt(hf);
+    u.sky.style.setProperty('--c', rgb(c));
+    u.sky.style.setProperty('--c2', rgb(c.map(v => v + (255 - v) * .22)));
+    u.sky.style.setProperty('--night', nightness(hf).toFixed(3));
+    u.sky.classList.toggle('is-light', lum(c) > .21);
+    u.dial.classList.toggle('is-day', hf >= 6 && hf < 18);
+  }
+}
+
+/* ---------- render: everything that reads as text ---------- */
+function durText(ms){
+  let m = Math.round(Math.abs(ms) / MIN);
+  const d = Math.floor(m / 1440); m -= d * 1440;
+  const h = Math.floor(m / 60); m -= h * 60;
+  return [d ? d + '日' : '', h ? h + '時間' : '', m ? m + '分' : ''].filter(Boolean).join(' ');
+}
+function dateText(p, thisYear){ return (p.y !== thisYear ? p.y + '/' : '') + p.mo + '/' + p.day + '(' + p.wd + ')'; }
+
+function render(){
+  const now = Date.now(), P = state.zones.map(tz => local(tz, state.t));
+  const thisYear = new Date(now).getFullYear();
+  for(let i = 0; i < 2; i++){
+    const u = ui[i], tz = state.zones[i], p = P[i], name = zoneName(tz);
+    u.cityName.textContent = name;
+    u.city.setAttribute('aria-label', name + '（タイムゾーンを変える）');
+    u.meta.innerHTML = `<span class="meta-region">${esc(zoneRegion(tz))}</span><span class="meta-sep"> · </span><span class="meta-utc">${utcLabel(p.off)}${isDst(tz, state.t) ? ' · 夏時間' : ''}</span>`;
+    const rel = p.dn - Math.floor((now + offsetMs(tz, now)) / DAY);
+    const relWord = rel === 0 ? '今日' : rel === 1 ? '明日' : rel === -1 ? '昨日' : '';
+    u.date.innerHTML = (relWord ? `<b>${relWord}</b>` : '') + dateText(p, thisYear);
+    u.time.innerHTML = hhmm(p.h, p.mi).split('').map(ch => `<span class="${ch === ':' ? 'c' : 'd'}">${ch}</span>`).join('');
+    u.dial.setAttribute('aria-label', name + 'の時刻');
+    u.dial.setAttribute('aria-valuenow', p.h * 60 + p.mi);
+    u.dial.setAttribute('aria-valuetext', `${p.mo}月${p.day}日(${p.wd}) ${hhmm(p.h, p.mi)}`);
+
+    // the other zone's 9:00–18:00, drawn on this dial
+    const q = P[1 - i], h1 = 9 - (q.off - p.off) / HOUR;
+    const [ax,ay] = pol(120, hourAng(h1)), [bx,by] = pol(120, hourAng(h1 + 9));
+    u.overlap.setAttribute('d', `M${f1(ax)} ${f1(ay)}A120 120 0 0 1 ${f1(bx)} ${f1(by)}`);
+    u.overlap.style.display = state.overlap ? '' : 'none';
+
+    const [nx,ny] = pol(168, hourAng(mod(now + offsetMs(tz, now), DAY) / HOUR));
+    u.nowdot.setAttribute('cx', f1(nx)); u.nowdot.setAttribute('cy', f1(ny));
+    u.nowdot.style.display = state.live ? 'none' : '';
+  }
+  // day relation, shown on the second dial relative to the first
+  const dd = P[1].dn - P[0].dn, b = ui[1].badge;
+  b.className = 'badge ' + (dd === 0 ? 'same' : 'off');
+  b.firstElementChild.textContent = dd === 0 ? '同じ日' : dd > 0 ? '翌日' : '前日';
+  b.title = dd === 0 ? '' : `${zoneName(state.zones[0])}から見て${dd > 0 ? '翌日' : '前日'}`;
+  ui[0].badge.className = 'badge blank';
+
+  // time difference
+  const A = zoneName(state.zones[0]), B = zoneName(state.zones[1]);
+  const dm = Math.round((P[1].off - P[0].off) / MIN), a = Math.abs(dm), dh = Math.floor(a / 60), dmi = a % 60;
+  if(dm === 0){
+    $('diff').innerHTML = '±0<small>時間</small>';
+    $('diffCap').textContent = '時差なし';
+  }else{
+    $('diff').innerHTML = (dm > 0 ? '+' : '−') + (dh ? dh + '<small>時間</small>' : '') + (dmi ? dmi + '<small>分</small>' : '');
+    $('diffCap').innerHTML = `<span class="cap-long">${esc(B)}は${esc(A)}より<br>${dm > 0 ? '進んでいる' : '遅れている'}</span><span class="cap-short">下が${dm > 0 ? '進んでいる' : '遅れている'}</span>`;
+  }
+
+  $('diff').classList.toggle('long', dh > 0 && dmi > 0);
+  $('summary').textContent = `${A} ${dateText(P[0], thisYear)} ${hhmm(P[0].h, P[0].mi)} ＝ ${B} ${dateText(P[1], thisYear)} ${hhmm(P[1].h, P[1].mi)}`;
+
+  const delta = state.t - nowMin();
+  $('status').classList.toggle('live', state.live);
+  $('statusText').textContent = state.live ? 'いまの時刻' : delta === 0 ? 'いまと同じ時刻' : `いまから ${durText(delta)} ${delta > 0 ? 'あと' : 'まえ'}`;
+  $('nowBtn').disabled = state.live;
+  $('overlapHint').hidden = !state.overlap;
+  $('overlapHint2').hidden = !state.overlap;
+
+  $('setZone0').innerHTML = `<span><small>1つめの円</small><br>${esc(A)}</span><small>変える</small>`;
+  $('setZone1').innerHTML = `<span><small>2つめの円</small><br>${esc(B)}</span><small>変える</small>`;
+}
+
+/* ---------- animation loop ---------- */
+let raf = 0, lastFrame = 0;
+function kick(){ if(!raf){ lastFrame = performance.now(); raf = requestAnimationFrame(frame); } }
+function frame(ts){
+  raf = 0;
+  const dt = Math.min(50, Math.max(1, ts - lastFrame)); lastFrame = ts;
+  if(inertia){
+    tRaw += inertia.v * dt * MS_PER_DEG;
+    inertia.v *= Math.exp(-dt / 260);
+    applyRaw(inertia.i);
+    if(Math.abs(inertia.v) < .012){ inertia = null; tRaw = state.t; }
+  }
+  const target = (drag || inertia) ? tRaw : state.t;
+  if(reduceMotion.matches) disp = target;
+  else{
+    disp += (target - disp) * (1 - Math.exp(-dt / (drag ? 26 : 75)));
+    if(Math.abs(target - disp) < 12000) disp = target;
+  }
+  paint();
+  if(inertia || disp !== target) kick();
+}
+
+/* ---------- tick feedback ---------- */
+let actx = null, lastTick = 0;
+function tick(){
+  const n = performance.now();
+  if(n - lastTick < 22) return;
+  lastTick = n;
+  try{ if(navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate(3); }catch(e){}
+  if(!state.sound) return;
+  try{
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if(actx.state === 'suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime;
+    o.type = 'triangle'; o.frequency.value = 1500;
+    g.gain.setValueAtTime(.06, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + .035);
+    o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + .04);
+  }catch(e){}
+}
+
+/* ---------- turning the dials ---------- */
+function applyRaw(i){
+  const s = snapLocal(tRaw, state.zones[i], state.step);
+  if(s !== state.t){ state.t = s; tick(); render(); }
+}
+function nudge(i, minutes){
+  inertia = null;
+  const base = state.live ? snapLocal(state.t, state.zones[i], state.step) : state.t;
+  state.live = false;
+  state.t = base + minutes * MIN; tRaw = state.t;
+  tick(); render(); kick();
+}
+function goNow(){
+  inertia = null; drag = null;
+  state.live = true; state.t = nowMin(); tRaw = state.t;
+  render(); kick();
+}
+function pointerAt(e, dial){
+  const r = dial.getBoundingClientRect(), k = 400 / r.width;
+  const x = (e.clientX - r.left) * k - 200, y = (e.clientY - r.top) * k - 200;
+  return { x, y, r:Math.hypot(x, y), ang:Math.atan2(x, -y) * 180 / Math.PI };
+}
+const normDeg = d => { d = mod(d + 180, 360) - 180; return d === -180 ? 180 : d; };
+
+ui.forEach((u, i) => {
+  const dial = u.dial;
+  dial.addEventListener('pointerdown', e => {
+    if(e.button) return;
+    const p = pointerAt(e, dial);
+    if(p.r > 206) return;
+    e.preventDefault();
+    dial.focus({preventScroll:true});
+    try{ dial.setPointerCapture(e.pointerId); }catch(err){}
+    inertia = null;
+    const tz = state.zones[i];
+    tRaw = state.t;
+    const nearKnob = Math.hypot(p.x - knobPos[i].x, p.y - knobPos[i].y) < 36;
+    if(!nearKnob && p.r > 110){
+      // pressing the ring: the hand comes to the finger, staying on the same calendar day
+      const off = offsetMs(tz, state.t), dayStart = Math.floor((state.t + off) / DAY) * DAY;
+      tRaw = dayStart + mod(p.ang / 15 + 12, 24) * HOUR - off;
+    }
+    drag = { i, id:e.pointerId, last:p.ang, v:0, at:performance.now() };
+    state.live = false;
+    dial.classList.add('is-drag');
+    const before = state.t;
+    applyRaw(i);
+    if(state.t === before) render();
+    kick();
+  });
+  dial.addEventListener('pointermove', e => {
+    if(!drag || drag.i !== i || e.pointerId !== drag.id) return;
+    const p = pointerAt(e, dial), d = normDeg(p.ang - drag.last), n = performance.now();
+    drag.v += (d / Math.max(4, n - drag.at) - drag.v) * .4;
+    drag.last = p.ang; drag.at = n;
+    tRaw += d * MS_PER_DEG;
+    applyRaw(i);
+    kick();
+  });
+  const release = e => {
+    if(!drag || drag.i !== i || e.pointerId !== drag.id) return;
+    dial.classList.remove('is-drag');
+    const fling = e.type === 'pointerup' && !reduceMotion.matches && performance.now() - drag.at < 70 && Math.abs(drag.v) > .25;
+    if(fling) inertia = { i, v:Math.max(-3, Math.min(3, drag.v)) };
+    else tRaw = state.t;
+    drag = null;
+    kick();
+  };
+  dial.addEventListener('pointerup', release);
+  dial.addEventListener('pointercancel', release);
+
+  let wheelAcc = 0;
+  dial.addEventListener('wheel', e => {
+    e.preventDefault();
+    wheelAcc += e.deltaY * (e.deltaMode === 1 ? 16 : 1);
+    const n = Math.trunc(wheelAcc / 30);
+    if(n){ wheelAcc -= n * 30; nudge(i, n * state.step); }
+  }, {passive:false});
+
+  dial.addEventListener('keydown', e => {
+    const k = e.key;
+    let m = 0;
+    if(k === 'ArrowRight' || k === 'ArrowUp') m = state.step;
+    else if(k === 'ArrowLeft' || k === 'ArrowDown') m = -state.step;
+    else if(k === 'PageUp') m = 60;
+    else if(k === 'PageDown') m = -60;
+    else if(k === 'Home'){ e.preventDefault(); goNow(); return; }
+    if(m){ e.preventDefault(); nudge(i, m); }
+  });
+
+  u.city.addEventListener('click', () => openPicker(i));
+});
+
+$('nowBtn').addEventListener('click', goNow);
+$('swapBtn').addEventListener('click', () => { state.zones.reverse(); save(); render(); kick(); });
+
+/* ---------- copy ---------- */
+let toastTimer = 0;
+function toast(msg, ms){
+  const el = $('toast');
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, ms || 2400);
+}
+function copySummary(){
+  const out = $('summary'), text = out.textContent;
+  const fallback = () => {
+    if(out.offsetParent !== null){
+      const r = document.createRange(); r.selectNodeContents(out);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      toast('選択したよ。そのままコピーしてね');
+    }else toast('コピーできなかった。長押しでコピーしてね\n' + text, 8000);
+  };
+  try{ navigator.clipboard.writeText(text).then(() => toast('コピーした\n' + text), fallback); }catch(e){ fallback(); }
+}
+$('copyBtn').addEventListener('click', copySummary);
+$('copyIconBtn').addEventListener('click', copySummary);
+
+/* ---------- sheets ---------- */
+let pickIdx = 0, lastFocus = null;
+function openSheet(view, title){
+  if($('overlay').hidden) lastFocus = document.activeElement;
+  $('panelTitle').textContent = title;
+  $('pickerView').hidden = view !== 'picker';
+  $('settingsView').hidden = view !== 'settings';
+  $('overlay').hidden = false;
+}
+function closeSheet(){
+  $('overlay').hidden = true;
+  if(lastFocus && lastFocus.focus) lastFocus.focus({preventScroll:true});
+}
+function openPicker(i){
+  pickIdx = i;
+  openSheet('picker', (i ? '2つめ' : '1つめ') + 'の円のタイムゾーン');
+  $('tzSearch').value = '';
+  buildList('');
+  $('tzList').scrollTop = 0;
+  if(window.matchMedia('(pointer: fine)').matches) $('tzSearch').focus();
+  else $('closePanel').focus();
+}
+function rowHtml(tz, name, region){
+  const p = local(tz, state.t);
+  return `<button class="tz-row${tz === state.zones[pickIdx] ? ' current' : ''}" type="button" data-tz="${esc(tz)}">`
+    + `<span class="tz-name">${esc(name)}<small>${esc(region)}</small></span>`
+    + `<span class="tz-time">${hhmm(p.h, p.mi)}<small>${utcLabel(p.off)}</small></span></button>`;
+}
+function buildList(q){
+  const nq = norm(q);
+  let html = cityList.filter(c => !nq || cityKeys.get(c[0]).includes(nq)).map(c => rowHtml(c[0], c[1], c[2])).join('');
+  if(nq){
+    html += allTz.filter(id => !cityByTz.has(id) && norm(id).includes(nq)).slice(0, 40)
+      .map(id => rowHtml(id, pretty(id), id.split('/')[0])).join('');
+  }
+  $('tzList').innerHTML = html || '<p class="empty">見つからなかった。都市名か国名を、カタカナか英語で入れてみて。</p>';
+}
+$('tzSearch').addEventListener('input', e => buildList(e.target.value));
+$('tzList').addEventListener('click', e => {
+  const row = e.target.closest('.tz-row');
+  if(!row) return;
+  state.zones[pickIdx] = row.dataset.tz;
+  save(); closeSheet(); render(); kick();
+});
+$('settingsBtn').addEventListener('click', () => {
+  $('step' + state.step).checked = true;
+  $('optOverlap').checked = state.overlap;
+  $('optSound').checked = state.sound;
+  openSheet('settings', '設定');
+  $('closePanel').focus();
+});
+$('setZone0').addEventListener('click', () => openPicker(0));
+$('setZone1').addEventListener('click', () => openPicker(1));
+document.querySelectorAll('input[name="step"]').forEach(r => r.addEventListener('change', () => { state.step = +r.value; save(); }));
+$('optOverlap').addEventListener('change', e => { state.overlap = e.target.checked; save(); render(); });
+$('optSound').addEventListener('change', e => { state.sound = e.target.checked; save(); if(state.sound) tick(); });
+$('closePanel').addEventListener('click', closeSheet);
+$('overlay').addEventListener('pointerdown', e => { if(e.target === $('overlay')) closeSheet(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('overlay').hidden) closeSheet(); });
+
+/* ---------- keep up with the real clock ---------- */
+let lastNow = nowMin();
+function clock(){
+  const n = nowMin();
+  if(state.live){
+    if(n !== state.t){ state.t = n; tRaw = n; render(); kick(); }
+  }else if(n !== lastNow) render();
+  lastNow = n;
+}
+setInterval(clock, 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) clock(); });
+
+render();
+paint();
+kick();
+})();
+</script>
+
+</body></html>
