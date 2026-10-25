@@ -10,3 +10,4 @@ Claudeさんとつくったhtml置き場
 - [demoire.html](https://nu424.github.io/html-okiba-byclaude/demoire.html): 液晶画面を撮ったときの色にじみや格子縞を、ブラウザ内だけで抑えるモアレ低減。
 - [timedifference-dial.html](https://nu424.github.io/html-okiba-byclaude/timedifference-dial.html): 2都市の一日ダイヤルを回して、時差と相手の時刻を見くらべる。
 - [pptx-translator.html](https://nu424.github.io/html-okiba-byclaude/pptx-translator.html): .pptxのテキストを原文と並べて校正しながら翻訳し、レイアウトを保ったまま書き出すワークベンチ（OpenRouter / Chrome内蔵AI）。
+- [zukai-parts-studio.html](https://nu424.github.io/html-okiba-byclaude/zukai-parts-studio.html): 言葉で頼んだ図をスライドに並べ、PowerPointで図形に変換できるSVGを書き出す（OpenRouter）。

@@ -1,0 +1,1357 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>図解パーツ工房</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen workbench — conversation (left) / slide canvas + object strip (center) / design rules (right). Top bar holds undo and the output sentence. */
+:root{
+  --bg:#E6E9EF;
+  --panel:#FFFFFF;
+  --panel-2:#F2F4F8;
+  --ink:#161B25;
+  --muted:#5E6779;
+  --line:#D4D9E2;
+  --accent:#2D59F5;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E3E9FE;
+  --warn:#A86A12;
+  --bad:#BF2F28;
+  --desk:#D7DBE3;
+  --guide:#E5407A;
+  --f-logo:'Dela Gothic One','IBM Plex Sans JP',sans-serif;
+  --f-body:'IBM Plex Sans JP','Hiragino Sans','Yu Gothic',system-ui,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111419;--panel:#1A1F28;--panel-2:#212733;--ink:#E8ECF3;--muted:#98A1B3;--line:#2E3543;
+  --accent:#7090FF;--accent-ink:#0D1220;--accent-soft:#263160;--warn:#E3A84A;--bad:#F07068;--desk:#0B0D11;--guide:#FF6A9C;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111419;--panel:#1A1F28;--panel-2:#212733;--ink:#E8ECF3;--muted:#98A1B3;--line:#2E3543;
+  --accent:#7090FF;--accent-ink:#0D1220;--accent-soft:#263160;--warn:#E3A84A;--bad:#F07068;--desk:#0B0D11;--guide:#FF6A9C;color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.5;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.main{display:grid;grid-template-columns:320px minmax(0,1fr) 284px;gap:10px;min-height:0}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.logo{font-family:var(--f-logo);font-size:19px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.logo-mark{width:22px;height:22px;position:relative;flex:none}
+.logo-mark i{position:absolute;border:2px solid var(--accent);background:var(--panel)}
+.logo-mark i:nth-child(1){left:0;top:5px;width:12px;height:12px;border-radius:3px}
+.logo-mark i:nth-child(2){left:9px;top:0;width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.logo-mark i:nth-child(3){left:10px;top:11px;width:11px;height:11px;transform:rotate(45deg);border-radius:2px}
+.spacer{flex:1}
+.ib{border:1px solid transparent;background:transparent;border-radius:8px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted)}
+.ib:hover:not(:disabled){background:var(--panel);border-color:var(--line);color:var(--ink)}
+.ib:disabled{opacity:.35;cursor:default}
+.out{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 4px 4px 12px;white-space:nowrap}
+.out .tgt{color:var(--muted);font-size:12.5px}
+.out .tgt b{color:var(--ink);font-weight:600;max-width:12em;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+select.sm{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12.5px}
+.split{position:relative;display:flex}
+.split .go{border-radius:7px 0 0 7px;padding:6px 14px}
+.split .caret{border-radius:0 7px 7px 0;padding:6px 8px;border-left:1px solid rgba(255,255,255,.35)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:5px;min-width:170px;z-index:30;display:flex;flex-direction:column}
+.menu button{border:0;background:transparent;text-align:left;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;display:flex;justify-content:space-between;gap:12px}
+.menu button:hover:not(:disabled){background:var(--panel-2)}
+.menu button[aria-checked=true]{font-weight:600}
+.menu button[aria-checked=true]::after{content:"✓";color:var(--accent)}
+.menu button:disabled{opacity:.4;cursor:default}
+
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 11px;cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;justify-content:center;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.primary{background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);font-weight:600;cursor:pointer}
+.primary:disabled{opacity:.45;cursor:not-allowed}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+
+/* left: conversation */
+.seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+.seg button{flex:1;border:0;background:transparent;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.14);font-weight:600}
+.seg button:disabled{opacity:.4;cursor:default}
+.chat-head{padding:10px;border-bottom:1px solid var(--line)}
+.thread{flex:1;overflow:auto;padding:12px 10px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.msg{display:flex;flex-direction:column;gap:4px;max-width:92%}
+.msg.user{align-self:flex-end;align-items:flex-end}
+.msg.ai{align-self:flex-start}
+.bubble{padding:7px 11px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user .bubble{background:var(--accent-soft);border-bottom-right-radius:4px}
+.msg.ai .bubble{background:var(--panel-2);border-bottom-left-radius:4px}
+.msg.ai.pending .bubble{color:var(--muted)}
+.msg .tagimg{font-size:11px;color:var(--muted)}
+.vthumb{border:1px solid var(--line);background:#FFFFFF;border-radius:8px;padding:4px;cursor:pointer;display:flex;align-items:center;gap:8px;width:max-content;max-width:100%}
+.vthumb .th{width:84px;height:46px;display:flex;align-items:center;justify-content:center}
+.vthumb .th svg{max-width:100%;max-height:100%}
+.vthumb span{font-family:var(--f-mono);font-size:11px;color:#5E6779;padding-right:4px}
+.vthumb[aria-current=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.empty{margin:auto 0;display:flex;flex-direction:column;gap:8px;color:var(--muted);font-size:12.5px}
+.empty p{margin:0}
+.ex{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 10px;text-align:left;cursor:pointer;font-size:12.5px;display:flex;flex-direction:column;gap:1px}
+.ex small{color:var(--muted);font-size:11px}
+.ex:hover{border-color:var(--accent)}
+.composer{border-top:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:8px}
+.composer textarea{background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;width:100%;resize:none;min-height:68px}
+.composer .row{display:flex;gap:6px;align-items:center}
+.composer select{min-width:0;flex:1}
+.attach{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:var(--panel-2);border-radius:8px;padding:4px 6px}
+.attach img{width:40px;height:30px;object-fit:cover;border-radius:4px}
+.notice{font-size:12px;color:var(--warn)}
+.send{border-radius:8px;padding:7px 16px;min-width:84px}
+.send.stop{background:var(--panel);color:var(--ink);border-color:var(--line)}
+
+/* center */
+.center{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
+.stage-wrap{flex:1;min-height:0;background:var(--desk);border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.slide{position:relative;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.16),0 10px 28px rgba(10,20,40,.14);user-select:none;-webkit-user-select:none;touch-action:none}
+.slide-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.obj{position:absolute;cursor:grab}
+.obj.drag{cursor:grabbing}
+.obj .svgbox,.obj .svgbox svg{display:block;width:100%;height:100%;overflow:visible}
+.obj:hover:not(.sel):not(.sel2){outline:1px solid rgba(45,89,245,.45)}
+.obj.sel2{outline:1px dashed rgba(45,89,245,.75)}
+.obj.ghost{outline:1.5px dashed #2D59F5}
+.selbox{position:absolute;outline:1.5px solid #2D59F5;pointer-events:none}
+.selbox .h{position:absolute;width:10px;height:10px;background:#FFFFFF;border:1.5px solid #2D59F5;border-radius:2px;margin:-5px 0 0 -5px;pointer-events:auto}
+.h.nw{left:0;top:0;cursor:nwse-resize}.h.ne{left:100%;top:0;cursor:nesw-resize}.h.sw{left:0;top:100%;cursor:nesw-resize}.h.se{left:100%;top:100%;cursor:nwse-resize}
+.guides{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.guides i{position:absolute;background:var(--guide)}
+.marq{position:absolute;border:1px solid #2D59F5;background:rgba(45,89,245,.08);pointer-events:none}
+.snapbtn{position:absolute;top:8px;right:8px;background:var(--panel);border-color:var(--line)}
+.snapbtn[aria-pressed=true]{color:var(--accent)}
+.snapbtn[aria-pressed=false]{opacity:.6}
+.stage-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9AA1AD;font-size:14px;pointer-events:none}
+.dropmask{position:absolute;inset:0;border:2px dashed var(--accent);border-radius:12px;background:rgba(45,89,245,.06);display:none;pointer-events:none}
+.stage-wrap.over .dropmask{display:block}
+
+.strip{height:92px;flex:none;display:flex;align-items:center;gap:12px;padding:8px 10px;flex-direction:row}
+.strip-info{display:flex;flex-direction:column;gap:4px;width:180px;flex:none}
+.strip-info input{border:1px solid transparent;background:transparent;border-radius:6px;padding:3px 6px;font-weight:600;width:100%}
+.strip-info input:hover,.strip-info input:focus{border-color:var(--line);background:var(--panel-2)}
+.meta{font-family:var(--f-mono);font-size:11px;color:var(--muted);padding-left:6px;font-variant-numeric:tabular-nums}
+.warnchip{font-size:11.5px;color:var(--warn);display:flex;gap:6px;align-items:center;padding-left:6px}
+.warnchip button{border:0;background:none;color:var(--accent);cursor:pointer;padding:0;font-size:11.5px;text-decoration:underline}
+.thumbs{flex:1;display:flex;gap:8px;overflow-x:auto;min-width:0;padding:3px 2px;align-items:center;height:100%}
+.thumb{flex:none;width:96px;height:66px;border:1px solid var(--line);border-radius:8px;background:#FFFFFF;padding:5px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative}
+.thumb .th{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+.thumb .th svg{max-width:100%;max-height:100%}
+.thumb span{font-size:10px;color:#5E6779;font-family:var(--f-mono);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thumb:hover{border-color:var(--accent)}
+.thumb[aria-current=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.tools{display:grid;grid-template-columns:repeat(2,30px);grid-auto-rows:30px;gap:2px;flex:none}
+.tools.align{grid-template-columns:repeat(4,30px)}
+.tools .ib{width:30px;height:30px}
+.tools.acts{padding-left:8px;border-left:1px solid var(--line)}
+.modelrow{display:flex;gap:6px}
+.modelrow input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-family:var(--f-mono);font-size:11.5px}
+.modelrow select{flex:none}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:inherit}
+.hint{font-size:12px;color:var(--muted)}
+
+/* right: design */
+.dhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.dhead h2{margin:0;font-size:13px;font-weight:600;flex:1}
+.switch{position:relative;width:34px;height:20px;flex:none}
+.switch input{opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1}
+.switch i{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .15s}
+.switch i::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch input:checked+i{background:var(--accent)}
+.switch input:checked+i::after{transform:translateX(14px)}
+.switch input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
+.dbody{overflow:auto;flex:1;min-height:0}
+.dbody.off .dsec:not(.always){opacity:.42}
+.dsec{padding:11px 12px;display:flex;flex-direction:column;gap:8px}
+.dsec+.dsec{border-top:1px solid var(--line)}
+.sh{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.sh input{accent-color:var(--accent);width:14px;height:14px;margin:0}
+.sh .grow{flex:1}
+.dsec.dim>*:not(.sh){opacity:.45}
+.prow{display:flex;gap:6px;align-items:center}
+.prow select{flex:1;min-width:0}
+.sws{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.sw{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted)}
+.sw input{width:100%;height:30px;border:1px solid var(--line);border-radius:7px;padding:2px;background:var(--panel);cursor:pointer}
+.gen{display:flex;flex-direction:column;gap:6px;background:var(--panel-2);border-radius:9px;padding:8px}
+.gen input[type=text]{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%;min-width:0}
+.sl{display:grid;grid-template-columns:52px 1fr 44px;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.sl input{accent-color:var(--accent);width:100%;min-width:0}
+.sl b{font-family:var(--f-mono);font-weight:400;font-size:11px;color:var(--ink);text-align:right}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chips button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+.chips button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);font-weight:600}
+.dsec textarea{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%;resize:vertical;min-height:56px}
+.dsec select{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(10,14,22,.45);display:flex;align-items:center;justify-content:center;z-index:40;padding:16px}
+.dialog{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(720px,100%);max-height:min(640px,100%);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.dialog.small{width:min(380px,100%)}
+.dialog header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dialog header h3{margin:0;font-size:14px;flex:1}
+.dialog .body{padding:14px;overflow:auto;display:flex;flex-direction:column;gap:14px;min-height:0;flex:1}
+.dialog footer{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+.frow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center}
+.frow>span{font-size:12.5px;color:var(--muted)}
+.tabs{display:flex;gap:4px}
+.tabs button{border:0;background:transparent;padding:6px 10px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:12.5px}
+.tabs button[aria-selected=true]{background:var(--panel-2);color:var(--ink);font-weight:600}
+.scenes{display:grid;grid-template-columns:170px minmax(0,1fr);gap:12px;min-height:320px}
+.slist{display:flex;flex-direction:column;gap:3px}
+.slist button{border:1px solid transparent;background:transparent;text-align:left;padding:6px 9px;border-radius:7px;cursor:pointer;font-size:12.5px}
+.slist button[aria-current=true]{background:var(--accent-soft);border-color:var(--accent)}
+.sedit{display:flex;flex-direction:column;gap:8px;min-width:0}
+.sedit input,.sedit textarea,.big-ta,.dialog input[type=text]{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+.sedit textarea{flex:1;min-height:220px;resize:vertical}
+.big-ta{min-height:360px;font-size:12.5px;resize:vertical;font-family:var(--f-body)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(16px);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:50;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@keyframes pop{0%{transform:scale(.97);opacity:.5}100%{transform:scale(1);opacity:1}}
+.obj.pop{animation:pop .26s ease-out}
+@media (prefers-reduced-motion:reduce){.obj.pop{animation:none}.toast,.switch i,.switch i::after{transition:none}}
+
+@media (max-width:1180px){
+  body{overflow:auto;height:auto}
+  .app{height:auto}
+  .main{grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"center center" "chat design"}
+  .center{grid-area:center}.chat{grid-area:chat;height:560px}.design{grid-area:design;height:560px}
+  .stage-wrap{flex:none;height:calc((100vw - 32px) * 0.5)}
+}
+@media (max-width:760px){
+  .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"center" "chat" "design"}
+  .stage-wrap{height:calc((100vw - 32px) * 0.62)}
+  .strip{height:auto;flex-wrap:wrap}
+  .strip-info{width:100%}
+  .thumbs{height:72px}
+  .out{flex-wrap:wrap}
+  .frow{grid-template-columns:1fr}
+  .scenes{grid-template-columns:1fr}
+}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="logo"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>図解パーツ工房</div>
+    <button type="button" class="ib" id="undoBtn" title="元に戻す（Ctrl+Z）" aria-label="元に戻す"></button>
+    <button type="button" class="ib" id="redoBtn" title="やり直す（Ctrl+Shift+Z）" aria-label="やり直す"></button>
+    <span class="spacer"></span>
+    <div class="out">
+      <span class="tgt" id="outTarget"></span>
+      <select class="sm" id="outFmt" aria-label="形式"><option value="svg">SVG</option><option value="png">PNG</option></select>
+      <span class="tgt">として</span>
+      <div class="split">
+        <button type="button" class="primary go" id="outGo"></button>
+        <button type="button" class="primary caret" id="outCaret" aria-label="出力方法を選ぶ" aria-haspopup="menu">▾</button>
+        <div class="menu" id="outMenu" role="menu" hidden></div>
+      </div>
+    </div>
+    <button type="button" class="ib" id="settingsBtn" title="設定" aria-label="設定"></button>
+  </header>
+
+  <div class="main">
+    <section class="panel chat" aria-label="会話">
+      <div class="chat-head">
+        <div class="seg" role="group" aria-label="作成か編集か">
+          <button type="button" id="modeNew">新しく作る</button>
+          <button type="button" id="modeEdit"></button>
+        </div>
+      </div>
+      <div class="thread" id="thread"></div>
+      <div class="composer">
+        <div class="attach" id="attach" hidden><img id="attachImg" alt=""><span>参考画像</span><span class="spacer"></span><button type="button" class="ib" id="attachClear" aria-label="参考画像を外す" style="width:24px;height:24px"></button></div>
+        <textarea id="input" rows="3"></textarea>
+        <div class="row">
+          <select class="sm" id="scene" aria-label="場面"></select>
+          <button type="button" class="ib" id="attachBtn" title="参考画像を添付（貼り付け・ドロップも可）" aria-label="参考画像を添付"></button>
+          <button type="button" class="primary send" id="sendBtn"></button>
+        </div>
+        <div class="modelrow">
+          <input type="text" id="modelIn" list="modelList" spellcheck="false" autocomplete="off" aria-label="モデル（OpenRouterのモデルID）" title="OpenRouterのモデルID">
+          <select class="sm" id="effortSel" aria-label="思考量"></select>
+        </div>
+        <datalist id="modelList"><option value="anthropic/claude-sonnet-5.5"></option><option value="anthropic/claude-opus-5.5"></option><option value="anthropic/claude-haiku-5.5"></option></datalist>
+        <div class="notice" id="aiNotice" hidden></div>
+        <input type="file" id="attachFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      </div>
+    </section>
+
+    <section class="center">
+      <div class="stage-wrap" id="stageWrap">
+        <div class="slide" id="slide">
+          <img class="slide-bg" id="slideBg" alt="" hidden>
+          <div id="objs"></div>
+          <div class="selbox" id="selbox" hidden><i class="h nw" data-h="nw"></i><i class="h ne" data-h="ne"></i><i class="h sw" data-h="sw"></i><i class="h se" data-h="se"></i></div>
+          <div class="guides" id="guides"></div>
+          <div class="marq" id="marq" hidden></div>
+          <div class="stage-empty" id="stageEmpty" hidden>左の入力欄から図をつくりましょう</div>
+        </div>
+        <div class="dropmask"></div>
+        <button type="button" class="ib snapbtn" id="snapBtn" aria-pressed="true" title="スナップ（Altを押している間は一時的にオフ）" aria-label="スナップ"></button>
+      </div>
+      <div class="panel strip" id="strip"></div>
+      <input type="file" id="bgFile" accept="image/*" hidden>
+      <input type="file" id="svgFile" accept=".svg,image/svg+xml" hidden>
+    </section>
+
+    <section class="panel design" aria-label="デザインルール">
+      <div class="dhead"><h2>デザインルール</h2><label class="switch" title="オフにするとAIにおまかせ"><input type="checkbox" id="dEnabled" aria-label="デザインルールを使う"><i></i></label></div>
+      <div class="dbody" id="dbody">
+        <div class="dsec always">
+          <div class="prow">
+            <select id="presetSel" aria-label="プリセット"></select>
+            <button type="button" class="ib" id="presetSave" title="いまの設定をプリセットとして保存" aria-label="プリセットを保存"></button>
+            <button type="button" class="ib" id="presetDel" title="プリセットを削除" aria-label="プリセットを削除"></button>
+          </div>
+        </div>
+        <div class="dsec" data-sec="color">
+          <label class="sh"><input type="checkbox" data-use="color">配色</label>
+          <div class="prow">
+            <select id="palSel" aria-label="カラーパレット"></select>
+            <button type="button" class="ib" id="palSave" title="パレットを保存" aria-label="パレットを保存"></button>
+            <button type="button" class="ib" id="palDel" title="パレットを削除" aria-label="パレットを削除"></button>
+            <button type="button" class="ib" id="palGenBtn" title="AIでパレットを作る" aria-label="AIでパレットを作る"></button>
+          </div>
+          <div class="sws" id="sws"></div>
+          <div class="gen" id="palGen" hidden>
+            <input type="text" id="palGenText" placeholder="例：信頼感のある医療系、落ち着いた秋色">
+            <div class="attach" id="palAttach" hidden><img id="palAttachImg" alt=""><span>この画像の配色から</span><span class="spacer"></span><button type="button" class="ib" id="palAttachClear" aria-label="画像を外す" style="width:24px;height:24px"></button></div>
+            <div class="prow"><button type="button" class="btn" id="palImgBtn">画像から</button><span class="spacer"></span><button type="button" class="primary btn" id="palGenGo">生成</button></div>
+            <input type="file" id="palFile" accept="image/png,image/jpeg,image/webp" hidden>
+          </div>
+        </div>
+        <div class="dsec" data-sec="text">
+          <label class="sh"><input type="checkbox" data-use="text">文字</label>
+          <select id="fontSel" aria-label="フォント"></select>
+          <label class="sl">本文<input type="range" id="fs" min="12" max="32" step="1"><b id="fsV"></b></label>
+        </div>
+        <div class="dsec" data-sec="shape">
+          <label class="sh"><input type="checkbox" data-use="shape">形と線</label>
+          <label class="sl">線<input type="range" id="sw" min="0.5" max="6" step="0.5"><b id="swV"></b></label>
+          <label class="sl">角丸<input type="range" id="radius" min="0" max="30" step="1"><b id="radiusV"></b></label>
+        </div>
+        <div class="dsec" data-sec="taste">
+          <label class="sh"><input type="checkbox" data-use="taste">テイスト</label>
+          <div class="chips" id="tasteChips"></div>
+        </div>
+        <div class="dsec" data-sec="extra">
+          <label class="sh"><input type="checkbox" data-use="extra">追加ルール</label>
+          <textarea id="extra" rows="3" placeholder="例：アイコンは使わない／ラベルは体言止め／矢印は細め"></textarea>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal" id="settingsModal" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <header><h3 id="setTitle">設定</h3><div class="tabs" role="tablist" id="setTabs"></div><button type="button" class="ib" id="setClose" aria-label="閉じる"></button></header>
+    <div class="body" id="setBody"></div>
+  </div>
+</div>
+<div class="modal" id="nameModal" hidden>
+  <div class="dialog small" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
+    <header><h3 id="nameTitle"></h3></header>
+    <div class="body"><input type="text" id="nameInput" maxlength="30"></div>
+    <footer><button type="button" class="btn" id="nameCancel">キャンセル</button><button type="button" class="primary btn" id="nameOk">保存</button></footer>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = () => Math.random().toString(36).slice(2,7);
+const f1 = n => String(Math.round(n*10)/10);
+const f4 = n => String(Math.round(n*10000)/10000);
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch{ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} }
+};
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove('on'),2400); }
+
+/* ---------- icons ---------- */
+const IC = {
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo:'<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  gear:'<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+  clip:'<path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.4 3.4 0 0 1 4.8 4.8l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  dup:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  front:'<rect x="9" y="9" width="11" height="11" rx="2" fill="currentColor" fill-opacity=".25"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/>',
+  back:'<rect x="4" y="4" width="11" height="11" rx="2" fill="currentColor" fill-opacity=".25"/><path d="M15 9h4a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-4"/>',
+  save:'<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
+  spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
+  image:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  upload:'<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+  magnet:'<path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4"/><path d="M10 3v8a2 2 0 0 0 4 0V3"/>',
+  selAll:'<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 2.4"/><rect x="8" y="8" width="8" height="8" rx="1" fill="currentColor" fill-opacity=".25"/>',
+  alL:'<path d="M4 3v18"/><rect x="7" y="6" width="11" height="4" rx="1"/><rect x="7" y="14" width="7" height="4" rx="1"/>',
+  alC:'<path d="M12 3v18"/><rect x="6" y="6" width="12" height="4" rx="1"/><rect x="8" y="14" width="8" height="4" rx="1"/>',
+  alR:'<path d="M20 3v18"/><rect x="6" y="6" width="11" height="4" rx="1"/><rect x="10" y="14" width="7" height="4" rx="1"/>',
+  alT:'<path d="M3 4h18"/><rect x="6" y="7" width="4" height="11" rx="1"/><rect x="14" y="7" width="4" height="7" rx="1"/>',
+  alM:'<path d="M3 12h18"/><rect x="6" y="6" width="4" height="12" rx="1"/><rect x="14" y="8" width="4" height="8" rx="1"/>',
+  alB:'<path d="M3 20h18"/><rect x="6" y="6" width="4" height="11" rx="1"/><rect x="14" y="10" width="4" height="7" rx="1"/>',
+  distH:'<path d="M4 3v18M20 3v18"/><rect x="9" y="7" width="6" height="10" rx="1"/>',
+  distV:'<path d="M3 4h18M3 20h18"/><rect x="7" y="9" width="10" height="6" rx="1"/>',
+};
+const icon = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
+[['#undoBtn','undo'],['#redoBtn','redo'],['#settingsBtn','gear'],['#attachBtn','clip'],['#attachClear','x'],['#presetSave','save'],['#presetDel','trash'],['#palSave','save'],['#palDel','trash'],['#palGenBtn','spark'],['#palAttachClear','x'],['#setClose','x']].forEach(([s,n])=>$(s).innerHTML=icon(n));
+
+/* ---------- constants ---------- */
+const SW = 1280, SH = 720, CM = 2.54/96;
+const FONTS = [
+  {id:'yugothic', name:'游ゴシック', svg:'Yu Gothic'},
+  {id:'meiryo', name:'メイリオ', svg:'Meiryo'},
+  {id:'bizud', name:'BIZ UDPゴシック', svg:'BIZ UDPGothic'},
+  {id:'noto', name:'Noto Sans JP', svg:'Noto Sans JP'},
+  {id:'hiragino', name:'ヒラギノ角ゴ', svg:'Hiragino Sans'},
+  {id:'yumincho', name:'游明朝', svg:'Yu Mincho'},
+  {id:'arial', name:'Arial', svg:'Arial'},
+];
+const BUILTIN_PALETTES = [
+  {id:'navy', name:'ネイビー', colors:{main:'#1F3A68',sub:'#5B82BE',accent:'#E8963A',text:'#1A1F2B',base:'#EEF2F8'}},
+  {id:'mint', name:'ミント', colors:{main:'#0F7B6C',sub:'#59BBA9',accent:'#E5554F',text:'#14302B',base:'#E8F5F2'}},
+  {id:'mono', name:'モノトーン', colors:{main:'#2B2D31',sub:'#8A8D93',accent:'#D7372F',text:'#1A1A1A',base:'#F1F1F2'}},
+  {id:'sunset', name:'サンセット', colors:{main:'#B9461B',sub:'#E9A06A',accent:'#2457C5',text:'#2A1A10',base:'#FBEFE6'}},
+  {id:'grape', name:'グレープ', colors:{main:'#56408F',sub:'#9C84D2',accent:'#E3A100',text:'#211A33',base:'#F1EDF9'}},
+  {id:'forest', name:'フォレスト', colors:{main:'#2F5D3A',sub:'#86AE6A',accent:'#C8553D',text:'#18261B',base:'#EEF4EA'}},
+];
+const ROLES = [['main','メイン'],['sub','サブ'],['accent','強調'],['text','文字'],['base','ベース']];
+const TASTES = [
+  ['flat','フラット','単色の塗りが基本。影・立体表現なし。輪郭線はなしか細め。'],
+  ['line','線画','塗りは白か淡色。形は線で表す。'],
+  ['soft','やわらか','角丸を大きめに、淡いトーン多め。親しみやすい印象。'],
+  ['sharp','シャープ','角丸なしで直線的。コントラスト高め。'],
+  ['hand','手描き風','線や輪郭にわずかな揺らぎ（pathで表現）。ラフで温かい印象。'],
+];
+const BUILTIN_SCENES = [
+  {id:'biz', name:'ビジネス図解', builtin:true, prompt:'情報を整理して伝える図。フロー、サイクル、階層（ツリー）、比較、マトリクス（2軸4象限）、ベン図、ピラミッド、タイムライン、放射などの定番の型から、内容に最も合うものを選ぶ。ラベルは短く体言止め（全角12字以内が目安）、補足は小さく。強調は1点だけアクセント色で。要素の大きさと間隔をそろえ、余白を十分にとる。装飾やアイコンは最小限。'},
+  {id:'schema', name:'模式図・説明図', builtin:true, prompt:'仕組み・構造・関係を説明する図。対象を単純な幾何形状に抽象化し、要素名は引き出し線と注釈ラベルで示す。流れ・力・変化は矢印で表し、矢印に短いラベルを付けてよい。立体感が必要なら、影やグラデーションは使わず面ごとの明度差で表す。主従は線の太さと色の濃さで示す。'},
+  {id:'illust', name:'イラスト・アイコン', builtin:true, prompt:'フラットなイラスト。色数は3〜5色に抑え、円・角丸四角・単純なpathの組み合わせで形をつくる。輪郭線を使うなら太さを統一する。人物は顔のパーツを省略するか点だけにした簡略表現。描き込みすぎず、遠目にも何かわかるシルエットを優先する。pathの点数は控えめに。'},
+  {id:'chart', name:'グラフ・数値', builtin:true, prompt:'棒・折れ線・円・ドーナツ・ゲージなどのチャート風の図。数値は依頼に従い、無い場合はもっともらしい仮の値を使う。軸・目盛り・数値ラベル・凡例は必要な分だけ。円グラフの扇形は path の円弧で正確に描く。目立たせたい系列だけアクセント色にする。'},
+  {id:'parts', name:'スライド部品', builtin:true, prompt:'吹き出し、番号バッジ、見出し帯、ラベル、強調枠、区切り線、チェックマークなど、スライドに添える小さな部品。単体でも使え、並べたときにそろうよう大きさと余白を一定にする。'},
+  {id:'free', name:'おまかせ', builtin:true, prompt:''},
+];
+const DEFAULT_COMMON = `あなたはプレゼン資料の図版デザイナーです。PowerPointに貼り付けて「図形に変換」でネイティブ図形として編集できる、図の部品をSVGで描きます。
+
+# 出力形式
+1行目: 何を作った・変えたかを一言（40字以内）
+2行目以降: SVG（コードフェンスや説明文は付けない）
+
+# SVGの制約（図形変換で崩れないため）
+- ルートに xmlns="http://www.w3.org/2000/svg"、viewBox="0 0 W H"、data-name="図の短い名前（10字以内）" を付ける。width / height は付けない。
+- スライドは 1280×720px。部品はスライド上の実寸を想定して viewBox を決める（W は 1200 以下）。
+- 使ってよい要素: g, rect, circle, ellipse, line, polyline, polygon, path, text, tspan のみ。defs, style, symbol, use, linearGradient, radialGradient, filter, mask, clipPath, marker, pattern, image, foreignObject は使わない。
+- 色は属性で直接指定する（fill / stroke / stroke-width / opacity）。style属性・class・CSSは使わない。塗らない図形は fill="none"。
+- 矢印の先端は marker を使わず、塗りつぶした polygon で描く。
+- すべての text に font-family と font-size（px）を付ける。複数行は tspan に x と y を付けて改行する（自動折り返しはない）。dominant-baseline は使わない。中央揃えは text-anchor="middle"。
+- 文字が図形からはみ出さないよう余白をとる。文字幅の目安: 全角は font-size、半角英数は font-size×0.55。
+- 意味のまとまりごとに g でまとめる。背景の全面 rect は描かない（透明背景）。
+- 座標は小数1桁まで。`;
+const OBJ_EDIT_NOTE = '# 修正のしかた\n現在のSVGを、依頼された点だけ修正する。指示のない配色・フォント・構成・data-name はできるだけ保つ。修正後のSVG全体を返す。';
+const CANVAS_FORMAT = `# キャンバス全体の編集
+複数の図をまとめて調整する。出力は1行目に一言、その後に変更・追加する図ごとのSVG。
+- 既存の図を変更する: ルートに data-obj="ID" を付け、その図のSVG全体を返す。
+- 新しい図を追加する: data-obj="new"。
+- 位置や大きさを変える: ルートに data-x / data-y / data-w（スライド上の左上座標と幅、px）を付ける。
+- 図を削除する: 1行で「DELETE: ID」。
+- 変更しない図は出力しない。`;
+const EXAMPLES = [
+  {scene:'biz', text:'新規顧客の獲得から定着までを5段階のフローで。3段階目を強調'},
+  {scene:'biz', text:'PDCAサイクル。中央に「業務改善」'},
+  {scene:'schema', text:'ブラウザ・APIサーバー・データベースの関係を示す構成図'},
+  {scene:'illust', text:'ノートPCで作業する人のフラットイラスト'},
+  {scene:'chart', text:'売上の前年比較の棒グラフ（2025年と2026年、四半期ごと）'},
+];
+const SAMPLE_SVG = (()=>{
+  const L=[['認知','知ってもらう'],['興味','比べてもらう'],['購入','選んでもらう'],['継続','使い続けてもらう']];
+  let s='';
+  L.forEach(([a,b],i)=>{ const x=i*186; const acc=i===3; const fill=acc?'#E8963A':'#1F3A68'; const tc=acc?'#2A1A10':'#FFFFFF'; const sc=acc?'#4A2E14':'#C9D6EC';
+    const pts = i===0 ? `${x},20 ${x+170},20 ${x+200},68 ${x+170},116 ${x},116` : `${x},20 ${x+170},20 ${x+200},68 ${x+170},116 ${x},116 ${x+30},68`;
+    const cx = i===0 ? x+90 : x+102;
+    s+=`<g><polygon points="${pts}" fill="${fill}"/><text font-family="Yu Gothic" text-anchor="middle"><tspan x="${cx}" y="62" font-size="22" font-weight="700" fill="${tc}">${a}</tspan><tspan x="${cx}" y="88" font-size="14" fill="${sc}">${b}</tspan></text></g>`; });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 136" data-name="購買ファネル">${s}</svg>`;
+})();
+
+/* ---------- state ---------- */
+const DEFAULT_MODEL = 'anthropic/claude-sonnet-5.5';
+const DEF_SETTINGS = {unit:'px', compose:'g', pngScale:2, pngBg:'transparent', outFmt:'svg', outAct:'copy', scene:'biz', common:DEFAULT_COMMON, scenes:null, model:DEFAULT_MODEL, effort:'medium', maxTokens:64000, snap:true};
+let settings = Object.assign({}, DEF_SETTINGS, LS.get('zk2.settings',{}));
+delete settings.tier;
+if(!Array.isArray(settings.scenes) || !settings.scenes.length) settings.scenes = clone(BUILTIN_SCENES);
+const DEF_DESIGN = {enabled:true, use:{color:true,text:true,shape:true,taste:true,extra:true}, paletteId:'navy', colors:clone(BUILTIN_PALETTES[0].colors), font:'yugothic', fs:18, sw:2, radius:8, taste:'flat', extra:'', presetId:''};
+let design = Object.assign(clone(DEF_DESIGN), LS.get('zk2.design',{}));
+design.use = Object.assign({}, DEF_DESIGN.use, design.use);
+design.colors = Object.assign({}, DEF_DESIGN.colors, design.colors);
+let palettes = LS.get('zk2.palettes', []);
+let presets = LS.get('zk2.presets', []);
+let state = LS.get('zk2.state', null);
+let apiKey = LS.get('zk2.orkey', '');
+const saveSettings = () => LS.set('zk2.settings', settings);
+const saveDesign = () => LS.set('zk2.design', design);
+let saveT=0; function saveState(){ clearTimeout(saveT); saveT=setTimeout(()=>LS.set('zk2.state',state),250); }
+
+let selIds = [], mode = 'new', busy = false, ctl = null, pending = null, live = null;
+let refImg = null, palImg = null, K = 1;
+let undoStack = [], redoStack = [];
+const find = id => state.objects.find(o=>o.id===id);
+const cur = o => o.versions[o.vi] || o.versions[o.versions.length-1];
+const objH = o => { const p=cur(o); return o.w * p.vh / p.vw; };
+const boxOf = o => ({x:o.x, y:o.y, w:o.w, h:objH(o)});
+const selObjs = () => selIds.map(find).filter(Boolean);
+const single = () => selIds.length===1 ? find(selIds[0]) : null;
+function bbox(objs){ let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; objs.forEach(o=>{ const b=boxOf(o); x0=Math.min(x0,b.x); y0=Math.min(y0,b.y); x1=Math.max(x1,b.x+b.w); y1=Math.max(y1,b.y+b.h); }); return {x:x0,y:y0,w:x1-x0,h:y1-y0}; }
+function checkpoint(snap){ undoStack.push(snap || JSON.stringify(state.objects)); if(undoStack.length>60) undoStack.shift(); redoStack=[]; updateUndo(); }
+function restore(json){ state.objects=JSON.parse(json); selIds=selIds.filter(id=>find(id)); if(!selIds.length) mode='new'; saveState(); renderAll(); }
+function undo(){ if(!undoStack.length||busy) return; redoStack.push(JSON.stringify(state.objects)); restore(undoStack.pop()); }
+function redo(){ if(!redoStack.length||busy) return; undoStack.push(JSON.stringify(state.objects)); restore(redoStack.pop()); }
+function updateUndo(){ $('#undoBtn').disabled=!undoStack.length||busy; $('#redoBtn').disabled=!redoStack.length||busy; }
+
+/* ---------- SVG parse / sanitize ---------- */
+const SAFE_ROOT = ['font-family','font-size','font-weight','fill','stroke','stroke-width','stroke-linejoin','stroke-linecap','opacity'];
+function parseOne(src){
+  let svg=null;
+  try{ const d=new DOMParser().parseFromString(src,'image/svg+xml'); if(!d.querySelector('parsererror') && d.documentElement.localName==='svg') svg=d.documentElement; }catch{}
+  if(!svg){ const t=document.createElement('template'); t.innerHTML=src; svg=t.content.querySelector('svg'); }
+  return svg;
+}
+function closeTags(src){
+  const stack=[]; const re=/<\/?([a-zA-Z][\w:-]*)[^>]*?(\/?)>/g; let m;
+  const body=src.replace(/^<svg[^>]*>/,'');
+  while((m=re.exec(body))){ const tag=m[1]; if(m[0][1]==='/'){ const k=stack.lastIndexOf(tag); if(k>=0) stack.splice(k); } else if(!m[2]) stack.push(tag); }
+  return stack.reverse().map(t=>`</${t}>`).join('');
+}
+function partialSVG(text){
+  const blocks=text.match(/<svg\b[\s\S]*?<\/svg>/gi); if(blocks) return blocks[0];
+  const i=text.search(/<svg\b/i); if(i<0) return null;
+  let s=text.slice(i); const k=s.lastIndexOf('>'); if(k<0) return null; s=s.slice(0,k+1);
+  if(!/^<svg[^>]*>/.test(s)) return null;
+  return s+closeTags(s)+'</svg>';
+}
+function toPart(svg){
+  svg.querySelectorAll('script,foreignObject,iframe,object,embed,style').forEach(n=>n.remove());
+  [svg,...svg.querySelectorAll('*')].forEach(n=>[...n.attributes].forEach(a=>{ const nm=a.name.toLowerCase(); if(nm.startsWith('on')) n.removeAttribute(a.name); if((nm==='href'||nm==='xlink:href') && !a.value.trim().startsWith('#') && !a.value.trim().startsWith('data:image/')) n.removeAttribute(a.name); }));
+  let vb=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+  if(vb.length!==4||vb.some(v=>!isFinite(v))||vb[2]<=0||vb[3]<=0){ const w=parseFloat(svg.getAttribute('width'))||800, h=parseFloat(svg.getAttribute('height'))||450; vb=[0,0,w,h]; }
+  const rootFont=svg.getAttribute('font-family');
+  if(!rootFont) svg.querySelectorAll('text').forEach(t=>{ let p=t,has=false; while(p&&p!==svg){ if(p.getAttribute&&p.getAttribute('font-family')){has=true;break;} p=p.parentNode; } if(!has) t.setAttribute('font-family', fontObj().svg); });
+  const rootAttrs = SAFE_ROOT.filter(a=>svg.hasAttribute(a)).map(a=>` ${a}="${esc(svg.getAttribute(a))}"`).join('');
+  const ser=new XMLSerializer();
+  const inner=[...svg.childNodes].map(n=>ser.serializeToString(n)).join('').replace(/ xmlns="http:\/\/www\.w3\.org\/2000\/svg"/g,'').trim();
+  const meta={name:svg.getAttribute('data-name')||'', obj:svg.getAttribute('data-obj'), x:parseFloat(svg.getAttribute('data-x')), y:parseFloat(svg.getAttribute('data-y')), w:parseFloat(svg.getAttribute('data-w'))};
+  return {part:{inner, vx:vb[0], vy:vb[1], vw:vb[2], vh:vb[3], rootAttrs, at:Date.now()}, meta};
+}
+function previewSVG(p, extra=''){ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${p.vx} ${p.vy} ${p.vw} ${p.vh}" preserveAspectRatio="xMidYMid meet"${p.rootAttrs}${extra}>${p.inner}</svg>`; }
+function plainSVG(p, name){ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(p.vx)} ${f1(p.vy)} ${f1(p.vw)} ${f1(p.vh)}"${name?` data-name="${esc(name)}"`:''}${p.rootAttrs}>\n${p.inner}\n</svg>`; }
+const RISKY = {filter:'影・ぼかし',lineargradient:'グラデーション',radialgradient:'グラデーション',mask:'マスク',clippath:'クリップ',marker:'marker矢印',image:'画像',pattern:'パターン',textpath:'パス上の文字',use:'use参照'};
+function risks(p){
+  const out=new Set(); const s=p.inner;
+  for(const k in RISKY){ if(new RegExp('<'+k+'\\b','i').test(s)) out.add(RISKY[k]); }
+  if(/\sstyle="/i.test(s)) out.add('style属性'); if(/\sclass="/i.test(s)) out.add('class');
+  if(/dominant-baseline|alignment-baseline/i.test(s)) out.add('baseline指定');
+  return [...out];
+}
+
+/* ---------- objects ---------- */
+function fitSize(p){ const s=Math.min(1, 1040/p.vw, 560/p.vh); return p.vw*s; }
+function spotFor(w,h){
+  let x=(SW-w)/2, y=Math.max(40,(SH-h)/2);
+  for(let i=0;i<12;i++){ if(!state.objects.some(o=>Math.abs(o.x-x)<8&&Math.abs(o.y-y)<8)) break; x+=32; y+=32; }
+  return {x,y};
+}
+function newObject(part, name, chat, at){
+  const w = at&&isFinite(at.w)&&at.w>20 ? at.w : fitSize(part); const h=w*part.vh/part.vw;
+  const pos = at&&isFinite(at.x)&&isFinite(at.y) ? {x:at.x,y:at.y} : spotFor(w,h);
+  return {id:'o'+uid(), name:name||'図', x:pos.x, y:pos.y, w, versions:[part], vi:0, chat:chat||[]};
+}
+function pushVersion(o, part){
+  const oldH=objH(o), cx=o.x+o.w/2, cy=o.y+oldH/2;
+  o.versions.push(part); o.vi=o.versions.length-1;
+  if(o.versions.length>30){ o.versions.shift(); o.vi--; o.chat.forEach(m=>{ if(m.v!=null){ m.v--; if(m.v<0) delete m.v; } }); }
+  const nh=objH(o); o.y=cy-nh/2; o.x=cx-o.w/2;
+  return o.vi;
+}
+if(!state || !Array.isArray(state.objects)){
+  state={objects:[], canvasChat:[]};
+  const {part,meta}=toPart(parseOne(SAMPLE_SVG));
+  const o=newObject(part, meta.name, [{role:'assistant', text:'サンプルの図です。下の入力欄から、この図への修正を指示できます', v:0}]);
+  o.y=300; state.objects.push(o);
+}
+state.canvasChat = state.canvasChat || [];
+
+/* ---------- design helpers ---------- */
+const fontObj = () => FONTS.find(f=>f.id===design.font) || FONTS[0];
+const allPalettes = () => [...BUILTIN_PALETTES, ...palettes];
+const scene = () => settings.scenes.find(s=>s.id===settings.scene) || settings.scenes[0];
+function rulesText(){
+  if(!design.enabled) return 'デザインはおまかせ。場面に合う配色とフォント（日本語なら "Yu Gothic"）で、統一感のある見た目にする。';
+  const c=design.colors, out=[];
+  if(design.use.color) out.push(`配色: メイン ${c.main} / サブ ${c.sub} / 強調 ${c.accent}（強調する要素だけ） / 文字 ${c.text} / 淡色ベース ${c.base}。ほかの色はこれらの明度違い程度にとどめる。`);
+  if(design.use.text) out.push(`フォント: font-family="${fontObj().svg}"。本文 ${design.fs}px、補足 ${Math.round(design.fs*0.78)}px、見出し ${Math.round(design.fs*1.3)}px 前後。`);
+  if(design.use.shape) out.push(`線の太さ ${design.sw}px、角丸半径 ${design.radius}px を基準にする。`);
+  if(design.use.taste && design.taste){ const t=TASTES.find(t=>t[0]===design.taste); if(t) out.push(`テイスト: ${t[1]}。${t[2]}`); }
+  if(design.use.extra && design.extra.trim()) out.push(`追加ルール: ${design.extra.trim()}`);
+  return out.length ? out.join('\n') : 'デザインはおまかせ。';
+}
+function systemText(kind){
+  const sc=scene();
+  return [settings.common.trim(), kind==='canvas'?CANVAS_FORMAT:'', kind==='obj'?OBJ_EDIT_NOTE:'', sc&&sc.prompt?`# 場面: ${sc.name}\n${sc.prompt}`:'', `# デザインルール\n${rulesText()}`].filter(Boolean).join('\n\n');
+}
+function histTurns(chat){
+  return chat.slice(-12).map(m=>({role:m.role, content: m.role==='user' ? (m.text||'（参考画像を見て）') : ((m.text||'更新しました')+'\n（SVGは省略）')}));
+}
+
+/* ---------- AI providers ---------- */
+const OR = 'https://openrouter.ai/api/v1';
+const IN_CLAUDE = !!(window.claude && window.claude.use);
+let claudeSample=null, claudeImg=false, aiChecked=!IN_CLAUDE;
+(async()=>{
+  await Promise.resolve();
+  if(IN_CLAUDE){ try{ claudeSample = await window.claude.use('sample'); }catch{ claudeSample=null; } if(claudeSample){ try{ claudeImg=!!(await claudeSample.limits()).images; }catch{} } }
+  aiChecked=true; renderComposer(); renderDesignAI();
+  if(!IN_CLAUDE) loadModels();
+})();
+let dl=null;
+(async()=>{ await Promise.resolve(); try{ dl = IN_CLAUDE ? await window.claude.use('downloads') : null; }catch{ dl=null; } renderOut(); })();
+const provider = () => apiKey ? 'openrouter' : claudeSample ? 'claude' : null;
+const imgOK = () => { const p=provider(); return p==='openrouter' || (p==='claude' && claudeImg); };
+const EFFORTS = [['','指定なし'],['none','なし'],['minimal','最小'],['low','低'],['medium','中'],['high','高'],['xhigh','最大']];
+async function loadModels(){
+  try{ const r=await fetch(OR+'/models'); const j=await r.json(); const ids=(j.data||[]).map(m=>m.id).filter(Boolean).sort(); if(ids.length) $('#modelList').innerHTML=ids.map(i=>`<option value="${esc(i)}"></option>`).join(''); }catch{}
+}
+async function imageDataURL(blob, max=1568){
+  const url=URL.createObjectURL(blob);
+  try{
+    const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+    const s=Math.min(1, max/Math.max(img.naturalWidth,img.naturalHeight)); const w=Math.max(1,Math.round(img.naturalWidth*s)), h=Math.max(1,Math.round(img.naturalHeight*s));
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.fillStyle='#FFFFFF'; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
+    return c.toDataURL('image/jpeg',0.9);
+  }catch{ throw {code:'image_rejected'}; }
+  finally{ URL.revokeObjectURL(url); }
+}
+async function aiCall({system, turns, images, onText, onThink, signal, effort}){
+  const p=provider(); if(!p) throw {code:'no_provider'};
+  const eff = effort!==undefined ? effort : settings.effort;
+  if(p==='claude'){
+    const opts={signal, cache:false, onText:({text})=>onText&&onText(text)};
+    if(images&&images.length) opts.images=images;
+    const mm=/^anthropic\/(claude-[a-z]+-[\d.]+)$/i.exec(String(settings.model||'').trim());
+    if(mm) opts.model=mm[1].replace(/\./g,'-');
+    opts.modelTier = eff==='none'||eff==='minimal' ? 'quick' : 'default';
+    const em={low:'low',medium:'medium',high:'high',xhigh:'high'}[eff]; if(em) opts.effort=em;
+    const r=await claudeSample([{role:'user',content:system}, ...turns], opts);
+    return {text:r.text, truncated:r.truncated};
+  }
+  const msgs=[{role:'system',content:system}, ...turns.map(t=>({role:t.role, content:t.content}))];
+  if(images&&images.length){ const last=msgs[msgs.length-1]; const parts=[{type:'text',text:last.content}]; for(const b of images) parts.push({type:'image_url', image_url:{url:await imageDataURL(b)}}); last.content=parts; }
+  const body={model:String(settings.model||'').trim()||DEFAULT_MODEL, messages:msgs, stream:true, max_tokens:Math.max(1024, +settings.maxTokens||64000)};
+  if(eff) body.reasoning={effort:eff};
+  let res;
+  try{ res=await fetch(OR+'/chat/completions',{method:'POST', signal, headers:{'Authorization':'Bearer '+apiKey,'Content-Type':'application/json','X-Title':'Zukai Parts Studio'}, body:JSON.stringify(body)}); }
+  catch(e){ if(e&&e.name==='AbortError') throw {code:'cancelled'}; throw {code:'network'}; }
+  if(!res.ok){ let j=null; try{ j=await res.json(); }catch{} const m=(j&&j.error&&j.error.message)||res.statusText||'';
+    throw {code: res.status===401?'auth':res.status===402?'credits':res.status===429?'rate_limited':(res.status===400||res.status===404)?'bad_request':'upstream_error', message:m}; }
+  const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='', text='', finish=null, think='';
+  try{
+    for(;;){
+      const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true}); let i;
+      while((i=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,i).trim(); buf=buf.slice(i+1);
+        if(!line.startsWith('data:')) continue; const data=line.slice(5).trim(); if(!data||data==='[DONE]') continue;
+        let j; try{ j=JSON.parse(data); }catch{ continue; }
+        if(j.error) throw {code:'upstream_error', message:j.error.message||''};
+        const ch=j.choices&&j.choices[0]; if(!ch) continue; const d=ch.delta||{};
+        if(d.content){ text+=d.content; onText&&onText(text); }
+        else if(d.reasoning || (d.reasoning_details&&d.reasoning_details.length)){ const r=d.reasoning || d.reasoning_details.map(x=>x.text||x.summary||'').join(''); think+=r; onThink&&onThink(think); }
+        if(ch.finish_reason) finish=ch.finish_reason;
+      }
+    }
+  }catch(e){ if(e&&e.name==='AbortError') throw {code:'cancelled', text}; throw (e&&e.code)?e:{code:'network'}; }
+  if(!text.trim()) throw {code: finish==='length'?'too_long':'empty_completion'};
+  return {text, truncated: finish==='length'};
+}
+function parseJSONText(t){ const m=t.match(/```(?:json)?\s*([\s\S]*?)```/); const s=m?m[1]:t; const a=s.indexOf('{'), b=s.lastIndexOf('}'); if(a<0||b<a) throw {code:'invalid_json'}; try{ return JSON.parse(s.slice(a,b+1)); }catch{ throw {code:'invalid_json'}; } }
+const ERR = {no_provider:'設定でOpenRouterのAPIキーを入力してください',auth:'APIキーが正しくありません。設定を確認してください',credits:'OpenRouterのクレジットが不足しています',not_granted:'AIの利用が許可されませんでした',sampling_disabled:'このアカウントではAIを使えません',rate_limited:'呼び出しが集中しています。少し待ってからどうぞ',session_expired:'サインインし直してください',refused:'この内容では生成できませんでした。表現を変えてみてください',empty_completion:'AIから返答がありませんでした',too_long:'思考で出力枠を使い切りました。思考量を下げるか、設定で最大出力トークンを増やしてください',image_rejected:'画像を読み込めませんでした。PNGかJPEGで試してください',images_unavailable:'この接続先では画像を送れません',prompt_too_large:'入力が長すぎます。図や会話を減らしてください',invalid_json:'返答を読み取れませんでした。もう一度どうぞ',bad_svg:'返答からSVGを取り出せませんでした。もう一度どうぞ'};
+function errMsg(e){
+  const c=e&&e.code;
+  if(c==='not_granted'||c==='sampling_disabled'){ claudeSample=null; renderComposer(); renderDesignAI(); }
+  if(c==='network') return IN_CLAUDE ? 'OpenRouterに接続できません。Claude内のプレビューでは外部への接続が制限されるため、ファイル版で開いてください' : 'OpenRouterに接続できませんでした。ネットワークを確認してください';
+  if(c==='bad_request') return 'リクエストが拒否されました'+(e.message?`：${e.message}`:'（モデルIDを確認してください）');
+  if(c==='upstream_error' && e.message) return 'エラー：'+e.message;
+  return ERR[c]||'うまく生成できませんでした。もう一度どうぞ';
+}
+function commentOf(text){
+  const i=text.search(/<svg\b/i); let c=i<0?text:text.slice(0,i);
+  c=c.replace(/```[a-z]*\s*/gi,'').replace(/^\s*DELETE:.*$/gmi,'');
+  return (c.split('\n').map(s=>s.trim()).filter(Boolean)[0]||'').slice(0,140);
+}
+
+function buildPrompt(target, req, hasImg){
+  const imgNote = hasImg ? '\n\n（添付画像は参考資料。手書きラフ・既存の図・スクショなど。意図や構成を読み取って反映する）' : '';
+  if(target.kind==='new'){
+    const others = state.objects.length ? `# キャンバスにある図（参考）\n${state.objects.map(o=>`- ${o.name}`).join('\n')}\n\n` : '';
+    return {system:systemText('new'), turns:[{role:'user',content:`${others}# 依頼\n${req||'添付画像の内容を図にする'}${imgNote}`}]};
+  }
+  if(target.kind==='obj'){
+    const o=find(target.id);
+    return {system:systemText('obj'), turns:[...histTurns(o.chat), {role:'user',content:`# 現在のSVG\n${plainSVG(cur(o),o.name)}\n\n# 依頼\n${req||'添付画像を参考に修正する'}${imgNote}`}]};
+  }
+  const objs = target.ids ? target.ids.map(find).filter(Boolean) : state.objects;
+  const list = objs.map(o=>{ const h=objH(o); return `## ID: ${o.id}（${o.name}） x=${f1(o.x)} y=${f1(o.y)} w=${f1(o.w)} h=${f1(h)}\n${plainSVG(cur(o),o.name)}`; }).join('\n\n');
+  const scope = target.ids ? `# 対象\n選択中の${objs.length}個の図だけを調整する。\n\n` : '';
+  return {system:systemText('canvas'), turns:[...histTurns(state.canvasChat), {role:'user',content:`${scope}# キャンバスの図（スライド 1280×720px 上の位置）\n${list}\n\n# 依頼\n${req||'添付画像を参考に調整する'}${imgNote}`}]};
+}
+function turnsValid(turns){ while(turns.length && turns[0].role!=='user') turns.shift(); return turns; }
+
+let liveT=0;
+function pendingText(){
+  if(!pending) return '';
+  const t=pending.text||''; const c=commentOf(t);
+  if(t.search(/<svg\b/i)>=0) return (c?c+'\n':'')+`描いています… ${t.length.toLocaleString()}文字`;
+  if(c) return c;
+  if(pending.think){ const last=pending.think.trim().split('\n').filter(Boolean).pop()||''; return '考えています…\n'+last.slice(-90); }
+  return '考えています…';
+}
+function updatePending(){ const el=$('#pendingAI'); if(el) el.textContent=pendingText(); }
+function onLive(text, target){
+  pending.text=text; updatePending();
+  if(target.kind==='canvas') return;
+  const now=performance.now(); if(now-liveT<160) return; liveT=now;
+  const s=partialSVG(text); if(!s) return;
+  const svg=parseOne(s); if(!svg) return;
+  try{
+    const {part}=toPart(svg);
+    if(target.kind==='new'){ const w=fitSize(part), h=w*part.vh/part.vw; if(!live) live={id:null, ...spotFor(w,h)}; live.part=part; live.w=w; }
+    else live={id:target.id, part};
+    renderStage();
+  }catch{}
+}
+
+async function send(){
+  if(busy){ ctl&&ctl.abort(); return; }
+  if(!provider()){ toast(ERR.no_provider); openSettings('general'); return; }
+  const req=$('#input').value.trim();
+  if(!req && !refImg){ $('#input').focus(); return; }
+  const target = mode==='new' ? {kind:'new'} : selIds.length===1 ? {kind:'obj', id:selIds[0]} : {kind:'canvas', ids: selIds.length>1 ? [...selIds] : null};
+  if(target.kind==='canvas' && !state.objects.length){ toast('キャンバスに図がありません'); return; }
+  const img = refImg && imgOK() ? refImg : null;
+  ctl=new AbortController(); setBusy(true);
+  pending={req, img:!!img, text:'', think:'', target}; $('#input').value=''; clearRef(); renderThread();
+  const snap=JSON.stringify(state.objects);
+  try{
+    const pr=buildPrompt(target, req, !!img);
+    const {text,truncated}=await aiCall({system:pr.system, turns:turnsValid(pr.turns), images:img?[img]:null, signal:ctl.signal, onText:t=>onLive(t,target), onThink:t=>{ pending.think=t; updatePending(); }});
+    const comment=commentOf(text);
+    const blocks=text.match(/<svg\b[\s\S]*?<\/svg>/gi)||[];
+    const userMsg={role:'user', text:req, img:!!img};
+    if(target.kind==='new'){
+      if(!blocks.length) throw {code:'bad_svg', truncated};
+      const svg=parseOne(blocks[0]); if(!svg) throw {code:'bad_svg'};
+      const {part,meta}=toPart(svg);
+      const o=newObject(part, meta.name||scene().name, [userMsg, {role:'assistant', text:comment||'作成しました', v:0}], live&&live.id===null?{x:live.x,y:live.y}:null);
+      checkpoint(snap); state.objects.push(o); live=null; selIds=[o.id]; mode='edit'; popId=o.id;
+    } else if(target.kind==='obj'){
+      if(!blocks.length) throw {code:'bad_svg', truncated};
+      const svg=parseOne(blocks[blocks.length-1]); if(!svg) throw {code:'bad_svg'};
+      const {part,meta}=toPart(svg); const o=find(target.id);
+      checkpoint(snap); const v=pushVersion(o, part); if(meta.name && /^図\d*$/.test(o.name)) o.name=meta.name;
+      o.chat.push(userMsg, {role:'assistant', text:comment||'修正しました', v}); live=null; popId=o.id;
+    } else {
+      checkpoint(snap);
+      const tag = target.ids ? '［まとめて編集］' : '［全体編集］';
+      const changed=[], added=[]; const dels=[...text.matchAll(/^\s*DELETE:\s*([\w-]+)/gmi)].map(m=>m[1]);
+      blocks.forEach(b=>{ const svg=parseOne(b); if(!svg) return; const {part,meta}=toPart(svg); const o=meta.obj&&find(meta.obj);
+        if(o){ const v=pushVersion(o,part); if(isFinite(meta.x)) o.x=meta.x; if(isFinite(meta.y)) o.y=meta.y; if(isFinite(meta.w)&&meta.w>20) o.w=meta.w; if(meta.name) o.name=meta.name;
+          o.chat.push({role:'user', text:tag+req}, {role:'assistant', text:comment||'修正しました', v}); changed.push(o.name); }
+        else { const n=newObject(part, meta.name||'図', [{role:'user', text:tag+req},{role:'assistant', text:comment||'追加しました', v:0}], meta); state.objects.push(n); added.push(n.id); changed.push(n.name+'（追加）'); } });
+      dels.forEach(id=>{ const o=find(id); if(o){ state.objects=state.objects.filter(x=>x!==o); changed.push(o.name+'（削除）'); } });
+      if(!changed.length) throw {code:'bad_svg', truncated};
+      state.canvasChat.push(userMsg, {role:'assistant', text:(comment||'調整しました')+`\n→ ${changed.join('、')}`});
+      if(target.ids) selIds=[...selIds.filter(id=>find(id)), ...added];
+      live=null;
+    }
+    saveState();
+    if(truncated) toast('返答が途中で打ち切られた可能性があります');
+  }catch(e){
+    live=null;
+    if(e&&e.code==='cancelled'){ toast('止めました'); }
+    else { const m = e&&e.code==='bad_svg'&&e.truncated ? '返答が長すぎて途中で切れました。指示を分けるか、最大出力トークンを増やしてください' : errMsg(e); toast(m);
+      const list = target.kind==='new' ? null : target.kind==='obj' ? find(target.id)?.chat : state.canvasChat;
+      if(list){ list.push({role:'user', text:req, img:!!img}, {role:'assistant', text:'⚠ '+m, err:true}); saveState(); } }
+    if(!$('#input').value) $('#input').value=req;
+  }finally{ pending=null; setBusy(false); renderAll(); }
+}
+function setBusy(b){ busy=b; renderComposer(); updateUndo(); }
+
+/* ---------- palette generation ---------- */
+async function genPalette(){
+  if(!provider()){ toast(ERR.no_provider); openSettings('general'); return; }
+  const t=$('#palGenText').value.trim(); if(!t && !palImg){ $('#palGenText').focus(); return; }
+  const btn=$('#palGenGo'); btn.disabled=true; btn.textContent='生成中…';
+  try{
+    const {text}=await aiCall({effort:'none', system:'あなたは配色に詳しいデザイナーです。指示されたJSONだけを返します。', images: palImg&&imgOK()?[palImg]:null, turns:[{role:'user', content:`スライドの図に使うカラーパレットを1つ作ってください。
+条件: ${t||'添付画像の配色に合わせる'}
+${palImg?'添付画像の配色を読み取って参考にする。\n':''}役割:
+- main: 図形の基本色。白い文字が読める濃さ
+- sub: main と調和する補助色
+- accent: 強調用。main とはっきり区別できる色
+- text: 文字色。ほぼ黒に近く、パレットになじむ色味
+- base: 淡い塗り用。ほぼ白に近い
+次のJSONだけを返す: {"name":"パレット名（8字以内）","main":"#RRGGBB","sub":"#RRGGBB","accent":"#RRGGBB","text":"#RRGGBB","base":"#RRGGBB"}`}]});
+    const r=parseJSONText(text);
+    const hex=v=>/^#[0-9a-fA-F]{6}$/.test(String(v||'').trim())?String(v).trim().toUpperCase():null;
+    const colors={}; for(const [k] of ROLES){ const v=hex(r&&r[k]); if(!v) throw {code:'invalid_json'}; colors[k]=v; }
+    const p={id:'p'+uid(), name:String(r.name||'生成パレット').slice(0,16), colors};
+    palettes.push(p); LS.set('zk2.palettes',palettes);
+    design.paletteId=p.id; design.colors=clone(colors); design.use.color=true; saveDesign();
+    $('#palGen').hidden=true; $('#palGenText').value=''; clearPalImg(); renderDesign(); toast(`「${p.name}」を追加しました`);
+  }catch(e){ toast(errMsg(e)); }
+  finally{ btn.disabled=false; btn.textContent='生成'; }
+}
+
+/* ---------- output ---------- */
+const supports = mime => { try{ return typeof ClipboardItem!=='undefined' && (!ClipboardItem.supports || ClipboardItem.supports(mime)); }catch{ return false; } };
+function exportTarget(){
+  const objs = selIds.length ? selObjs() : state.objects;
+  if(!objs.length) return null;
+  if(objs.length===1){ const o=objs[0]; return {name:o.name, part:cur(o), w:o.w, h:objH(o)}; }
+  const b=bbox(objs);
+  const inner=objs.map(o=>{ const p=cur(o), h=objH(o), s=o.w/p.vw;
+    if(settings.compose==='nested') return `<svg x="${f1(o.x-b.x)}" y="${f1(o.y-b.y)}" width="${f1(o.w)}" height="${f1(h)}" viewBox="${f1(p.vx)} ${f1(p.vy)} ${f1(p.vw)} ${f1(p.vh)}"${p.rootAttrs}>\n${p.inner}\n</svg>`;
+    return `<g transform="translate(${f1(o.x-b.x-p.vx*s)} ${f1(o.y-b.y-p.vy*s)}) scale(${f4(s)})"${p.rootAttrs}>\n${p.inner}\n</g>`; }).join('\n');
+  return {name: selIds.length ? `図${objs.length}点` : 'キャンバス', part:{inner, vx:0, vy:0, vw:b.w, vh:b.h, rootAttrs:''}, w:b.w, h:b.h};
+}
+function svgOut(t, pxScale){
+  const p=t.part; let size='';
+  if(pxScale) size=` width="${Math.round(t.w*pxScale)}" height="${Math.round(t.h*pxScale)}"`;
+  else if(settings.unit==='px') size=` width="${f1(t.w)}" height="${f1(t.h)}"`;
+  else if(settings.unit==='pt') size=` width="${f1(t.w*0.75)}pt" height="${f1(t.h*0.75)}pt"`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(p.vx)} ${f1(p.vy)} ${f1(p.vw)} ${f1(p.vh)}"${size}${p.rootAttrs}>\n${p.inner}\n</svg>`;
+}
+function pngBlob(t){
+  return new Promise((res,rej)=>{
+    const sc=settings.pngScale; const s=svgOut(t, sc); const w=Math.round(t.w*sc), h=Math.round(t.h*sc);
+    const img=new Image(); const url=URL.createObjectURL(new Blob([s],{type:'image/svg+xml'}));
+    img.onload=()=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); if(settings.pngBg==='white'){ x.fillStyle='#FFFFFF'; x.fillRect(0,0,w,h); } x.drawImage(img,0,0,w,h); URL.revokeObjectURL(url); c.toBlob(b=>b?res(b):rej(new Error('png')),'image/png'); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('png')); };
+    img.src=url;
+  });
+}
+function saveFile(name, data, mime){
+  if(dl) return dl.save({filename:name, data});
+  const blob=data instanceof Blob?data:new Blob([data],{type:mime});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500);
+  return Promise.resolve();
+}
+const ACTS = [['copy','コピー'],['save','ファイルに保存'],['code','コードをコピー']];
+function actAllowed(a){ if(a==='code') return settings.outFmt==='svg'; return true; }
+function targetLabel(){ const o=single(); return o ? `「${o.name}」` : selIds.length>1 ? `選択中の${selIds.length}個` : 'キャンバス全体'; }
+function doOutput(act){
+  act = act || settings.outAct;
+  const t=exportTarget(); if(!t){ toast('キャンバスに図がありません'); return; }
+  const fmt=settings.outFmt; const label=targetLabel();
+  if(act==='copy'){
+    const mime = fmt==='svg'?'image/svg+xml':'image/png';
+    if(!supports(mime)){ toast(fmt==='svg'?'このブラウザはSVGのコピーに未対応です（Chrome / Edge 124以降）':'このブラウザは画像のコピーに未対応です'); return; }
+    let p; try{ p=navigator.clipboard.write([new ClipboardItem({[mime]: fmt==='svg' ? new Blob([svgOut(t)],{type:mime}) : pngBlob(t)})]); }catch(e){ p=Promise.reject(e); }
+    p.then(()=>toast(`${label}を${fmt.toUpperCase()}でコピーしました`)).catch(()=>toast('コピーできませんでした'));
+  } else if(act==='code'){
+    navigator.clipboard.writeText(svgOut(t)).then(()=>toast('SVGコードをコピーしました')).catch(()=>toast('コピーできませんでした'));
+  } else if(act==='save'){
+    const fname=(t.name||'zukai').replace(/[\\/:*?"<>|\s]+/g,'_').slice(0,40)+'.'+fmt;
+    (fmt==='svg'?Promise.resolve(svgOut(t)):pngBlob(t)).then(data=>saveFile(fname, data, fmt==='svg'?'image/svg+xml':'image/png')).then(()=>toast('保存しました')).catch(e=>{ if(e&&e.code==='declined') return; toast('保存できませんでした'); });
+  }
+}
+function renderOut(){
+  if(!actAllowed(settings.outAct)) settings.outAct='copy';
+  $('#outFmt').value=settings.outFmt;
+  $('#outGo').textContent=(ACTS.find(a=>a[0]===settings.outAct)||ACTS[0])[1];
+  const o=single();
+  $('#outTarget').innerHTML = o ? `<b>${esc(o.name)}</b> を` : selIds.length>1 ? `<b>選択中の${selIds.length}個</b> を` : 'キャンバス全体を';
+  $('#outGo').disabled=$('#outCaret').disabled=!state.objects.length;
+  $('#outMenu').innerHTML=ACTS.map(([k,n])=>`<button type="button" role="menuitemradio" data-a="${k}" aria-checked="${k===settings.outAct}" ${actAllowed(k)?'':'disabled'}>${n}</button>`).join('');
+}
+
+/* ---------- stage ---------- */
+let popId=null;
+function fit(){
+  const r=$('#stageWrap').getBoundingClientRect(); const pad=24;
+  let w=Math.min(r.width-pad*2, (r.height-pad*2)*16/9); w=Math.max(160,w);
+  $('#slide').style.width=w+'px'; $('#slide').style.height=(w*9/16)+'px'; K=w/SW; renderStage();
+}
+function objHTML(id, p, cls){ return `<div class="obj ${cls}" data-id="${id}"><div class="svgbox">${previewSVG(p,' width="100%" height="100%"')}</div></div>`; }
+function selCls(id){ return selIds.includes(id) ? (selIds.length>1?'sel2 ':'sel ') : ''; }
+function renderStage(){
+  let html='';
+  state.objects.forEach(o=>{ const isLive=live&&live.id===o.id; html+=objHTML(o.id, isLive?live.part:cur(o), selCls(o.id)+(isLive?'ghost ':'')+(o.id===popId?'pop':'')); });
+  if(live && live.id===null && live.part) html+=objHTML('', live.part, 'ghost');
+  const box=$('#objs'); box.innerHTML=html;
+  box.querySelectorAll('.obj').forEach(el=>{
+    const id=el.dataset.id; let x,y,w,h;
+    if(!id){ x=live.x; y=live.y; w=live.w; h=w*live.part.vh/live.part.vw; }
+    else { const o=find(id); x=o.x; y=o.y; w=o.w; const lv=live&&live.id===id; const p=lv?live.part:cur(o); h=w*p.vh/p.vw; if(lv) y=o.y+objH(o)/2-h/2; }
+    Object.assign(el.style,{left:x*K+'px',top:y*K+'px',width:w*K+'px',height:h*K+'px'});
+  });
+  popId=null; placeSelBox();
+  $('#stageEmpty').hidden = state.objects.length>0 || !!live;
+  $('#snapBtn').setAttribute('aria-pressed', String(!!settings.snap));
+}
+function placeEl(o){ const el=$(`#objs .obj[data-id="${o.id}"]`); if(!el) return; Object.assign(el.style,{left:o.x*K+'px',top:o.y*K+'px',width:o.w*K+'px',height:objH(o)*K+'px'}); }
+function placeSelBox(){
+  const sb=$('#selbox'); const objs=selObjs();
+  if(!objs.length || live){ sb.hidden=true; return; }
+  const b=bbox(objs); sb.hidden=false;
+  Object.assign(sb.style,{left:b.x*K+'px',top:b.y*K+'px',width:b.w*K+'px',height:b.h*K+'px'});
+}
+function updateSelClasses(){ $('#objs').querySelectorAll('.obj[data-id]').forEach(el=>{ const id=el.dataset.id; el.classList.toggle('sel', selIds.length===1&&selIds[0]===id); el.classList.toggle('sel2', selIds.length>1&&selIds.includes(id)); }); placeSelBox(); }
+
+/* snapping */
+function snapTargets(excl){
+  const xs=[{v:0},{v:SW/2},{v:SW}], ys=[{v:0},{v:SH/2},{v:SH}];
+  state.objects.forEach(o=>{ if(excl.includes(o.id)) return; const b=boxOf(o);
+    xs.push({v:b.x,b},{v:b.x+b.w/2,b},{v:b.x+b.w,b}); ys.push({v:b.y,b},{v:b.y+b.h/2,b},{v:b.y+b.h,b}); });
+  return {xs,ys};
+}
+function snapMove(box, T, only){
+  const th=7/K; let bx=null, by=null;
+  if(only!=='y') [box.x, box.x+box.w/2, box.x+box.w].forEach(m=>T.xs.forEach(t=>{ const d=t.v-m; if(Math.abs(d)<th && (bx===null||Math.abs(d)<Math.abs(bx))) bx=d; }));
+  if(only!=='x') [box.y, box.y+box.h/2, box.y+box.h].forEach(m=>T.ys.forEach(t=>{ const d=t.v-m; if(Math.abs(d)<th && (by===null||Math.abs(d)<Math.abs(by))) by=d; }));
+  return {dx:bx||0, dy:by||0};
+}
+function snapScale(s, ax, ay, relX, relY, T, minS){
+  const th=7/K; let best=null;
+  const test=(rels, targets, a)=>rels.forEach(r=>targets.forEach(t=>{ const s2=(t.v-a)/r; if(!(s2>=minS)) return; const diff=Math.abs(a+r*s-t.v); if(diff<th && (!best||diff<best.diff)) best={diff, s:s2}; }));
+  test(relX, T.xs, ax); test(relY, T.ys, ay);
+  return best ? best.s : s;
+}
+function guidesFor(box, T){
+  const out=[]; const ex=[box.x, box.x+box.w/2, box.x+box.w], ey=[box.y, box.y+box.h/2, box.y+box.h];
+  const add=(axis,v,a0,a1)=>{ const g=out.find(g=>g.axis===axis&&Math.abs(g.v-v)<0.5); if(g){ g.a0=Math.min(g.a0,a0); g.a1=Math.max(g.a1,a1); } else out.push({axis,v,a0,a1}); };
+  T.xs.forEach(t=>{ if(ex.some(e=>Math.abs(e-t.v)<0.5)) t.b ? add('v',t.v,Math.min(box.y,t.b.y)-8,Math.max(box.y+box.h,t.b.y+t.b.h)+8) : add('v',t.v,0,SH); });
+  T.ys.forEach(t=>{ if(ey.some(e=>Math.abs(e-t.v)<0.5)) t.b ? add('h',t.v,Math.min(box.x,t.b.x)-8,Math.max(box.x+box.w,t.b.x+t.b.w)+8) : add('h',t.v,0,SW); });
+  return out;
+}
+function drawGuides(list){
+  $('#guides').innerHTML=list.map(g=> g.axis==='v'
+    ? `<i style="left:${g.v*K-0.5}px;top:${g.a0*K}px;height:${(g.a1-g.a0)*K}px;width:1px"></i>`
+    : `<i style="top:${g.v*K-0.5}px;left:${g.a0*K}px;width:${(g.a1-g.a0)*K}px;height:1px"></i>`).join('');
+}
+
+/* ---------- strip ---------- */
+const ALIGN_TOOLS = [['l','alL','左揃え'],['c','alC','左右中央揃え'],['r','alR','右揃え'],['dh','distH','左右に等間隔'],['t','alT','上揃え'],['m','alM','上下中央揃え'],['b','alB','下揃え'],['dv','distV','上下に等間隔']];
+function toolsHTML(n){
+  const one=n===1;
+  const al=ALIGN_TOOLS.map(([k,ic,t])=>{ const dis=(k==='dh'||k==='dv')&&n<3; return `<button type="button" class="ib" data-align="${k}" title="${one?'スライドの'+t.replace('揃え','に揃える'):t}" aria-label="${t}" ${dis?'disabled':''}>${icon(ic)}</button>`; }).join('');
+  const ac=`<button type="button" class="ib" data-act="dup" title="複製（Ctrl+D）" aria-label="複製">${icon('dup')}</button><button type="button" class="ib" data-act="front" title="最前面へ" aria-label="最前面へ">${icon('front')}</button><button type="button" class="ib" data-act="back" title="最背面へ" aria-label="最背面へ">${icon('back')}</button><button type="button" class="ib" data-act="del" title="削除（Delete）" aria-label="削除">${icon('trash')}</button>`;
+  return `<div class="tools align">${al}</div><div class="tools acts">${ac}</div>`;
+}
+function stripMeta(){ const objs=selObjs(); if(!objs.length) return ''; const b=bbox(objs); return `${(b.w*CM).toFixed(1)} × ${(b.h*CM).toFixed(1)} cm`; }
+function renderStrip(){
+  const s=$('#strip'); const objs=selObjs(); const o=single();
+  if(o){
+    const rk=risks(cur(o));
+    s.innerHTML=`<div class="strip-info"><input type="text" id="objName" value="${esc(o.name)}" aria-label="図の名前" maxlength="30"><div class="meta">${stripMeta()}</div>${rk.length?`<div class="warnchip" title="PowerPointの図形変換で崩れる可能性があります">⚠ ${esc(rk.join('・'))}<button type="button" id="fixRisk">直す</button></div>`:''}</div>
+      <div class="thumbs" role="list" aria-label="バージョン">${o.versions.map((p,i)=>`<button type="button" class="thumb" data-v="${i}" aria-current="${i===o.vi}" title="バージョン ${i+1}"><div class="th">${previewSVG(p)}</div><span>v${i+1}</span></button>`).join('')}</div>${toolsHTML(1)}`;
+    const th=s.querySelector('.thumbs'); const c=th.querySelector('[aria-current=true]'); if(c) th.scrollLeft=c.offsetLeft-th.clientWidth+c.clientWidth+8;
+  } else if(objs.length){
+    s.innerHTML=`<div class="strip-info"><b style="padding-left:6px">${objs.length}個を選択</b><div class="meta">${stripMeta()}</div></div>
+      <div class="thumbs" role="list" aria-label="選択中の図">${objs.map(o=>`<button type="button" class="thumb" data-sel="${o.id}" title="${esc(o.name)}だけを選択"><div class="th">${previewSVG(cur(o))}</div><span>${esc(o.name)}</span></button>`).join('')}</div>${toolsHTML(objs.length)}`;
+  } else {
+    s.innerHTML=`<div class="strip-info"><b style="padding-left:6px">キャンバス</b><div class="meta">図 ${state.objects.length}</div></div>
+      <div class="thumbs" role="list" aria-label="図の一覧">${state.objects.length?state.objects.map(o=>`<button type="button" class="thumb" data-sel="${o.id}" title="${esc(o.name)}"><div class="th">${previewSVG(cur(o))}</div><span>${esc(o.name)}</span></button>`).join(''):'<span class="hint">SVGファイルのドロップや、SVGコードの貼り付けでも取り込めます</span>'}</div>
+      <div class="tools acts"><button type="button" class="ib" data-act="import" title="SVGを読み込む" aria-label="SVGを読み込む">${icon('upload')}</button><button type="button" class="ib" data-act="bg" title="${$('#slideBg').hidden?'背景にスライド画像を敷く':'背景画像を外す'}" aria-label="背景画像">${icon('image')}</button><button type="button" class="ib" data-act="all" title="すべて選択（Ctrl+A）" aria-label="すべて選択" ${state.objects.length?'':'disabled'}>${icon('selAll')}</button><button type="button" class="ib" data-act="clear" title="すべて削除" aria-label="すべて削除" ${state.objects.length?'':'disabled'}>${icon('trash')}</button></div>`;
+  }
+}
+
+/* ---------- chat ---------- */
+function renderThread(){
+  const th=$('#thread'); let msgs=[]; const o=single();
+  if(mode==='edit') msgs = o ? o.chat : state.canvasChat;
+  let html=msgs.map(m=>{
+    if(m.role==='user') return `<div class="msg user"><div class="bubble">${esc(m.text||'')}${m.img?`<div class="tagimg">＋参考画像</div>`:''}</div></div>`;
+    let v='';
+    if(o && m.v!=null && o.versions[m.v]) v=`<button type="button" class="vthumb" data-v="${m.v}" aria-current="${m.v===o.vi}" title="このバージョンに戻す"><div class="th">${previewSVG(o.versions[m.v])}</div><span>v${m.v+1}</span></button>`;
+    return `<div class="msg ai"><div class="bubble"${m.err?' style="color:var(--bad)"':''}>${esc(m.text||'')}</div>${v}</div>`;
+  }).join('');
+  if(pending) html += `<div class="msg user"><div class="bubble">${esc(pending.req)}${pending.img?`<div class="tagimg">＋参考画像</div>`:''}</div></div><div class="msg ai pending"><div class="bubble" id="pendingAI">${esc(pendingText())}</div></div>`;
+  if(!html){
+    if(mode==='new') html=`<div class="empty"><p>例から試す</p>${EXAMPLES.map((e,i)=>`<button type="button" class="ex" data-ex="${i}">${esc(e.text)}<small>${esc((settings.scenes.find(s=>s.id===e.scene)||{}).name||'')}</small></button>`).join('')}</div>`;
+    else if(o) html=`<div class="empty"><p>「${esc(o.name)}」への修正を入力してください。会話はこの図ごとに残ります。</p></div>`;
+    else html=`<div class="empty"><p>${selIds.length>1?`選択中の${selIds.length}個の図をまとめて調整します。`:'キャンバス上の図をまとめて調整します。'}</p><button type="button" class="ex" data-fill="配色とフォントをそろえて">配色とフォントをそろえて</button><button type="button" class="ex" data-fill="大きさをそろえて、左から順に横一列に並べて">大きさをそろえて、左から順に横一列に並べて</button></div>`;
+  }
+  th.innerHTML=html; th.scrollTop=th.scrollHeight;
+}
+function renderComposer(){
+  const o=single(); const n=selIds.length;
+  $('#modeNew').setAttribute('aria-pressed',String(mode==='new'));
+  $('#modeEdit').setAttribute('aria-pressed',String(mode==='edit'));
+  $('#modeEdit').textContent = o ? `「${o.name}」を編集` : n>1 ? `選択中の${n}個を編集` : '全体を編集';
+  $('#modeEdit').disabled = !state.objects.length || busy;
+  $('#modeNew').disabled = busy;
+  $('#input').placeholder = mode==='new' ? 'どんな図をつくりますか？' : o ? `「${o.name}」をどう直しますか？` : n>1 ? `選択中の${n}個への指示` : 'キャンバス全体への指示';
+  const sb=$('#sendBtn'); sb.textContent = busy ? '止める' : mode==='new' ? 'つくる' : 'なおす'; sb.classList.toggle('stop',busy);
+  const pv=provider();
+  sb.disabled = !busy && !aiChecked;
+  const nt=$('#aiNotice');
+  if(!aiChecked) nt.hidden=true;
+  else if(!pv){ nt.hidden=false; nt.className='notice'; nt.innerHTML='<button type="button" class="linkbtn" data-open="general">設定</button>でOpenRouterのAPIキーを入力してください'; }
+  else if(pv==='claude'){ nt.hidden=false; nt.className='hint'; nt.innerHTML='APIキー未設定のため、Claude内蔵のAIで生成します'; }
+  else nt.hidden=true;
+  $('#attachBtn').hidden = !imgOK();
+  $('#input').disabled=busy; $('#modelIn').disabled=busy; $('#effortSel').disabled=busy;
+  if(document.activeElement!==$('#modelIn')) $('#modelIn').value=settings.model;
+  $('#effortSel').innerHTML=EFFORTS.map(([v,n])=>`<option value="${v}">思考 ${n}</option>`).join(''); $('#effortSel').value=settings.effort||'';
+  const s=$('#scene'); s.innerHTML=settings.scenes.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')+'<option value="__edit">場面を編集…</option>'; s.value=settings.scene;
+}
+function renderAll(){ renderStage(); renderStrip(); renderThread(); renderComposer(); renderOut(); updateUndo(); }
+function setSel(ids, silent){
+  selIds=[...new Set(ids)].filter(id=>find(id)); mode = selIds.length ? 'edit' : 'new';
+  if(!silent) renderAll();
+}
+
+/* ---------- design ---------- */
+function renderDesign(){
+  $('#dEnabled').checked=design.enabled; $('#dbody').classList.toggle('off',!design.enabled);
+  document.querySelectorAll('[data-use]').forEach(cb=>{ cb.checked=!!design.use[cb.dataset.use]; cb.closest('.dsec').classList.toggle('dim',!cb.checked); });
+  $('#presetSel').innerHTML='<option value="">プリセット</option>'+presets.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  $('#presetSel').value=presets.some(p=>p.id===design.presetId)?design.presetId:'';
+  $('#presetDel').disabled=!$('#presetSel').value;
+  const pal=allPalettes().find(p=>p.id===design.paletteId);
+  const dirty = !pal || ROLES.some(([k])=>pal.colors[k].toUpperCase()!==String(design.colors[k]).toUpperCase());
+  $('#palSel').innerHTML=`<optgroup label="標準">${BUILTIN_PALETTES.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`+(palettes.length?`<optgroup label="保存済み">${palettes.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`:'')+(dirty?'<option value="__custom">カスタム（未保存）</option>':'');
+  $('#palSel').value = dirty ? '__custom' : design.paletteId;
+  $('#palDel').disabled = !palettes.some(p=>p.id===design.paletteId) || dirty;
+  $('#palSave').style.color = dirty ? 'var(--accent)' : '';
+  $('#sws').innerHTML=ROLES.map(([k,n])=>`<label class="sw"><input type="color" data-role="${k}" value="${design.colors[k]}" aria-label="${n}">${n}</label>`).join('');
+  $('#fontSel').innerHTML=FONTS.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join(''); $('#fontSel').value=design.font;
+  $('#fs').value=design.fs; $('#fsV').textContent=design.fs+'px';
+  $('#sw').value=design.sw; $('#swV').textContent=design.sw+'px';
+  $('#radius').value=design.radius; $('#radiusV').textContent=design.radius+'px';
+  $('#tasteChips').innerHTML=TASTES.map(([k,n,d])=>`<button type="button" data-taste="${k}" aria-pressed="${design.taste===k}" title="${esc(d)}">${n}</button>`).join('');
+  if(document.activeElement!==$('#extra')) $('#extra').value=design.extra;
+  renderDesignAI();
+}
+function renderDesignAI(){ $('#palImgBtn').hidden=!imgOK(); }
+function designChanged(){ design.presetId=''; saveDesign(); renderDesign(); }
+
+/* ---------- name dialog ---------- */
+function askName(title, def){
+  return new Promise(res=>{
+    const m=$('#nameModal'); $('#nameTitle').textContent=title; const inp=$('#nameInput'); inp.value=def||''; m.hidden=false; inp.focus(); inp.select();
+    const done=v=>{ m.hidden=true; $('#nameOk').onclick=$('#nameCancel').onclick=null; inp.onkeydown=null; res(v); };
+    $('#nameOk').onclick=()=>done(inp.value.trim()||null);
+    $('#nameCancel').onclick=()=>done(null);
+    inp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); done(inp.value.trim()||null); } if(e.key==='Escape'){ e.preventDefault(); done(null); } };
+  });
+}
+
+/* ---------- settings modal ---------- */
+let setTab='general', sceneEdit=null, keyVisible=false;
+function openSettings(tab){ setTab=tab||'general'; $('#settingsModal').hidden=false; renderSettings(); }
+function closeSettings(){ $('#settingsModal').hidden=true; renderComposer(); renderThread(); renderDesignAI(); }
+function segHTML(key, opts){ return `<div class="seg" data-key="${key}">${opts.map(([v,n])=>`<button type="button" data-v="${v}" aria-pressed="${String(settings[key])===String(v)}">${n}</button>`).join('')}</div>`; }
+async function testKey(){
+  const msg=$('#keyMsg'); if(!apiKey){ msg.textContent='APIキーを入力してください'; return; }
+  msg.textContent='確認しています…';
+  try{
+    const r=await fetch(OR+'/key',{headers:{'Authorization':'Bearer '+apiKey}});
+    if(r.status===401){ msg.textContent='APIキーが正しくありません'; return; }
+    const j=await r.json(); const d=j.data||{};
+    msg.textContent = `接続できました${d.label?`（${d.label}）`:''}` + (d.usage!=null?` · 使用額 $${Number(d.usage).toFixed(2)}`:'') + (d.limit!=null?` / 上限 $${Number(d.limit).toFixed(2)}`:'');
+    loadModels();
+  }catch{ msg.textContent = IN_CLAUDE ? 'このプレビューからは外部に接続できません。ファイル版で開いてください' : '接続できませんでした。ネットワークを確認してください'; }
+}
+function renderSettings(){
+  $('#setTabs').innerHTML=[['general','一般'],['scenes','場面設定'],['common','共通ルール']].map(([k,n])=>`<button type="button" role="tab" data-tab="${k}" aria-selected="${setTab===k}">${n}</button>`).join('');
+  const b=$('#setBody');
+  if(setTab==='general'){
+    b.innerHTML=`
+      <div class="frow"><span>OpenRouter APIキー</span><div class="prow"><input type="${keyVisible?'text':'password'}" id="keyIn" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false" value="${esc(apiKey)}"><button type="button" class="btn" id="keyShow">${keyVisible?'隠す':'表示'}</button><button type="button" class="btn" id="keyTest">確認</button></div></div>
+      <p class="hint" id="keyMsg" style="margin:-6px 0 0">キーはこのブラウザ（localStorage）にだけ保存され、OpenRouterとの通信にだけ使います。${IN_CLAUDE?'Claude内のプレビューでは外部に接続できないため、キーはファイル版で使ってください。':''}</p>
+      <div class="frow"><span>最大出力トークン</span><div class="prow"><input type="number" id="maxTok" min="1024" step="1024" value="${esc(settings.maxTokens)}" style="width:120px"><span class="hint">思考を含む上限。長い図で途中で切れるときに増やします</span></div></div>
+      <div class="frow"><span>SVGのサイズ指定</span>${segHTML('unit',[['px','px'],['pt','pt'],['none','指定なし']])}</div>
+      <div class="frow"><span>複数の図の書き出し</span>${segHTML('compose',[['g','グループ＋変形'],['nested','入れ子SVG']])}</div>
+      <div class="frow"><span>PNGの解像度</span>${segHTML('pngScale',[['1','1倍'],['2','2倍'],['3','3倍']])}</div>
+      <div class="frow"><span>PNGの背景</span>${segHTML('pngBg',[['transparent','透明'],['white','白']])}</div>
+      <p class="hint">SVGのコピー: ${supports('image/svg+xml')?'このブラウザは対応しています':'このブラウザは未対応です（Chrome / Edge 124以降）'}。PowerPointで貼り付けたら、右クリック →「図形に変換」で編集できます。</p>`;
+    $('#keyIn').oninput=e=>{ apiKey=e.target.value.trim(); LS.set('zk2.orkey',apiKey); renderComposer(); };
+    $('#keyShow').onclick=()=>{ keyVisible=!keyVisible; renderSettings(); };
+    $('#keyTest').onclick=testKey;
+    $('#maxTok').onchange=e=>{ const v=Math.round(+e.target.value); settings.maxTokens = v>=1024 ? v : 64000; saveSettings(); };
+  } else if(setTab==='scenes'){
+    if(!sceneEdit || !settings.scenes.find(s=>s.id===sceneEdit)) sceneEdit=settings.scene;
+    const s=settings.scenes.find(x=>x.id===sceneEdit)||settings.scenes[0];
+    const base=BUILTIN_SCENES.find(x=>x.id===s.id);
+    b.innerHTML=`<div class="scenes"><div class="slist">${settings.scenes.map(x=>`<button type="button" data-scene="${x.id}" aria-current="${x.id===s.id}">${esc(x.name)}</button>`).join('')}<button type="button" data-scene="__add" style="color:var(--accent)">＋ 場面を追加</button></div>
+      <div class="sedit"><input type="text" id="sceneName" value="${esc(s.name)}" aria-label="場面の名前" maxlength="20"><textarea id="scenePrompt" aria-label="場面の指示" placeholder="この場面でAIに守ってほしい描き方・考え方">${esc(s.prompt)}</textarea>
+      <div class="prow">${base?`<button type="button" class="btn" id="sceneReset">初期値に戻す</button>`:`<button type="button" class="btn" id="sceneDel">この場面を削除</button>`}<span class="spacer"></span><span class="hint">変更は自動で保存されます</span></div></div></div>`;
+    $('#sceneName').oninput=e=>{ s.name=e.target.value||'無題'; saveSettings(); b.querySelector(`[data-scene="${s.id}"]`).textContent=s.name; };
+    $('#scenePrompt').oninput=e=>{ s.prompt=e.target.value; saveSettings(); };
+    if(base) $('#sceneReset').onclick=()=>{ Object.assign(s, clone(base)); saveSettings(); renderSettings(); };
+    else $('#sceneDel').onclick=()=>{ settings.scenes=settings.scenes.filter(x=>x!==s); if(settings.scene===s.id) settings.scene=settings.scenes[0].id; sceneEdit=null; saveSettings(); renderSettings(); };
+  } else {
+    b.innerHTML=`<p class="hint" style="margin:0">すべての生成に使われる基本の指示です。出力形式やSVGの制約を変えたいときに編集します。</p><textarea class="big-ta" id="commonTa" aria-label="共通ルール">${esc(settings.common)}</textarea><div class="prow"><button type="button" class="btn" id="commonReset">初期値に戻す</button></div>`;
+    $('#commonTa').oninput=e=>{ settings.common=e.target.value; saveSettings(); };
+    $('#commonReset').onclick=()=>{ settings.common=DEFAULT_COMMON; saveSettings(); renderSettings(); };
+  }
+}
+
+/* ---------- images & import ---------- */
+function setRef(f){ if(!f||!/^image\//.test(f.type)||/svg/.test(f.type)) return false; if(!imgOK()){ toast('この接続先では画像をAIに送れません'); return true; } refImg=f; const i=$('#attachImg'); try{URL.revokeObjectURL(i.src);}catch{} i.src=URL.createObjectURL(f); $('#attach').hidden=false; return true; }
+function clearRef(){ refImg=null; $('#attach').hidden=true; }
+function setPalImg(f){ if(!f||!/^image\//.test(f.type)) return; palImg=f; const i=$('#palAttachImg'); try{URL.revokeObjectURL(i.src);}catch{} i.src=URL.createObjectURL(f); $('#palAttach').hidden=false; }
+function clearPalImg(){ palImg=null; $('#palAttach').hidden=true; }
+function setBg(f){ if(!f||!/^image\//.test(f.type)) return; const i=$('#slideBg'); try{URL.revokeObjectURL(i.src);}catch{} i.src=URL.createObjectURL(f); i.hidden=false; renderStrip(); }
+function importSVGText(text, at){
+  const blocks=text.match(/<svg\b[\s\S]*?<\/svg>/gi); if(!blocks) return false;
+  checkpoint(); const ids=[];
+  blocks.forEach(b=>{ const svg=parseOne(b); if(!svg) return; const {part,meta}=toPart(svg); const o=newObject(part, meta.name||'読み込んだ図', [{role:'assistant', text:'読み込んだ図です', v:0}], at); state.objects.push(o); ids.push(o.id); });
+  if(!ids.length){ undoStack.pop(); updateUndo(); return false; }
+  popId=ids[ids.length-1]; setSel(ids); saveState(); toast(ids.length>1?`${ids.length}個の図を読み込みました`:'SVGを読み込みました'); return true;
+}
+
+/* ---------- object ops ---------- */
+function delSel(){ if(!selIds.length) return; checkpoint(); state.objects=state.objects.filter(o=>!selIds.includes(o.id)); setSel([]); saveState(); }
+function dupSel(){ const objs=selObjs(); if(!objs.length) return; checkpoint(); const ids=[]; objs.forEach(o=>{ const n=clone(o); n.id='o'+uid(); n.x+=24; n.y+=24; n.name=o.name+'のコピー'; state.objects.push(n); ids.push(n.id); }); setSel(ids); saveState(); }
+function zSel(front){ if(!selIds.length) return; checkpoint(); const s=state.objects.filter(o=>selIds.includes(o.id)), r=state.objects.filter(o=>!selIds.includes(o.id)); state.objects = front ? [...r,...s] : [...s,...r]; saveState(); renderStage(); }
+function alignSel(k){
+  const objs=selObjs(); if(!objs.length) return;
+  const ref = objs.length===1 ? {x:0,y:0,w:SW,h:SH} : bbox(objs);
+  checkpoint();
+  if(k==='dh'||k==='dv'){
+    if(objs.length<3){ undoStack.pop(); updateUndo(); return; }
+    const hz=k==='dh'; const sorted=[...objs].sort((a,b)=>hz?(a.x+a.w/2)-(b.x+b.w/2):(a.y+objH(a)/2)-(b.y+objH(b)/2));
+    const sizes=sorted.map(o=>hz?o.w:objH(o)); const total=sizes.reduce((a,b)=>a+b,0);
+    const gap=((hz?ref.w:ref.h)-total)/(sorted.length-1); let p=hz?ref.x:ref.y;
+    sorted.forEach((o,i)=>{ if(hz) o.x=p; else o.y=p; p+=sizes[i]+gap; });
+  } else objs.forEach(o=>{ const h=objH(o);
+    if(k==='l') o.x=ref.x; if(k==='c') o.x=ref.x+ref.w/2-o.w/2; if(k==='r') o.x=ref.x+ref.w-o.w;
+    if(k==='t') o.y=ref.y; if(k==='m') o.y=ref.y+ref.h/2-h/2; if(k==='b') o.y=ref.y+ref.h-h; });
+  saveState(); renderStage(); renderStrip();
+}
+function restoreVersion(n){ const o=single(); if(!o||busy||n===o.vi||!o.versions[n]) return; checkpoint(); const cy=o.y+objH(o)/2; o.vi=n; o.y=cy-objH(o)/2; saveState(); renderAll(); }
+
+/* ---------- wiring ---------- */
+function init(){
+  $('#snapBtn').innerHTML=icon('magnet');
+  $('#modeNew').onclick=()=>{ mode='new'; renderAll(); $('#input').focus(); };
+  $('#modeEdit').onclick=()=>{ mode='edit'; renderAll(); $('#input').focus(); };
+  $('#sendBtn').onclick=send;
+  $('#input').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); send(); } });
+  $('#scene').onchange=e=>{ if(e.target.value==='__edit'){ e.target.value=settings.scene; openSettings('scenes'); return; } settings.scene=e.target.value; saveSettings(); };
+  $('#modelIn').addEventListener('change',e=>{ settings.model=e.target.value.trim()||DEFAULT_MODEL; saveSettings(); renderComposer(); });
+  $('#effortSel').onchange=e=>{ settings.effort=e.target.value; saveSettings(); };
+  $('#aiNotice').addEventListener('click',e=>{ const b=e.target.closest('[data-open]'); if(b) openSettings(b.dataset.open); });
+  $('#attachBtn').onclick=()=>$('#attachFile').click();
+  $('#attachFile').onchange=e=>{ setRef(e.target.files[0]); e.target.value=''; };
+  $('#attachClear').onclick=clearRef;
+  const comp=$('.composer');
+  comp.addEventListener('dragover',e=>{ if([...e.dataTransfer.items].some(i=>i.kind==='file')) e.preventDefault(); });
+  comp.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f){ e.preventDefault(); setRef(f); } });
+  $('#thread').addEventListener('click',e=>{
+    const ex=e.target.closest('[data-ex]'); if(ex){ const x=EXAMPLES[+ex.dataset.ex]; if(settings.scenes.some(s=>s.id===x.scene)){ settings.scene=x.scene; saveSettings(); renderComposer(); } $('#input').value=x.text; $('#input').focus(); return; }
+    const fl=e.target.closest('[data-fill]'); if(fl){ $('#input').value=fl.dataset.fill; $('#input').focus(); return; }
+    const v=e.target.closest('.vthumb'); if(v) restoreVersion(+v.dataset.v);
+  });
+
+  // stage
+  const wrap=$('#stageWrap'), slide=$('#slide');
+  if(window.ResizeObserver) new ResizeObserver(fit).observe(wrap); else window.addEventListener('resize',fit);
+  $('#snapBtn').onclick=()=>{ settings.snap=!settings.snap; saveSettings(); $('#snapBtn').setAttribute('aria-pressed',String(settings.snap)); toast(settings.snap?'スナップ オン':'スナップ オフ'); };
+  let act=null;
+  const toSlide=(ev,r)=>({x:(ev.clientX-r.left)/K, y:(ev.clientY-r.top)/K});
+  wrap.addEventListener('pointerdown',e=>{
+    if(e.button!==0 || e.target.closest('#snapBtn')) return;
+    if(busy && live) return;
+    const slideR=slide.getBoundingClientRect();
+    const h=e.target.closest('#selbox .h'); const el=e.target.closest('.obj');
+    const toggle=e.shiftKey||e.ctrlKey||e.metaKey;
+    const before=JSON.stringify(state.objects);
+    if(h){
+      const objs=selObjs(); if(!objs.length) return;
+      act={type:'resize', h:h.dataset.h, b:bbox(objs), orig:objs.map(o=>({o,x:o.x,y:o.y,w:o.w})), T:snapTargets(selIds)};
+    } else if(el && el.dataset.id){
+      const id=el.dataset.id; let clickSingle=null;
+      if(toggle){ if(selIds.includes(id)){ setSel(selIds.filter(x=>x!==id)); return; } setSel([...selIds,id]); }
+      else if(!selIds.includes(id)) setSel([id]);
+      else if(selIds.length>1) clickSingle=id;
+      const objs=selObjs();
+      act={type:'move', b:bbox(objs), orig:objs.map(o=>({o,x:o.x,y:o.y})), clickSingle, T:snapTargets(selIds)};
+    } else if(!el){
+      act={type:'marquee', p0:toSlide(e,slideR), base: toggle ? [...selIds] : []};
+      if(!toggle && selIds.length) setSel([]);
+    } else return;
+    Object.assign(act,{sx:e.clientX, sy:e.clientY, before, moved:false, slideR});
+    try{ wrap.setPointerCapture(e.pointerId); }catch{}
+    if(act.type!=='marquee') act.orig.forEach(r=>{ const x=$(`#objs .obj[data-id="${r.o.id}"]`); if(x) x.classList.add('drag'); });
+  });
+  wrap.addEventListener('pointermove',e=>{
+    if(!act) return;
+    if(!act.moved && Math.hypot(e.clientX-act.sx, e.clientY-act.sy)<3) return;
+    act.moved=true;
+    const snapOn = settings.snap && !e.altKey;
+    if(act.type==='move'){
+      let dx=(e.clientX-act.sx)/K, dy=(e.clientY-act.sy)/K; let only=null;
+      if(e.shiftKey){ if(Math.abs(dx)>=Math.abs(dy)){ dy=0; only='x'; } else { dx=0; only='y'; } }
+      const box={x:act.b.x+dx, y:act.b.y+dy, w:act.b.w, h:act.b.h};
+      if(snapOn){ const s=snapMove(box, act.T, only); dx+=s.dx; dy+=s.dy; box.x+=s.dx; box.y+=s.dy; }
+      act.orig.forEach(r=>{ r.o.x=r.x+dx; r.o.y=r.y+dy; placeEl(r.o); });
+      drawGuides(snapOn?guidesFor(box, act.T):[]); placeSelBox();
+    } else if(act.type==='resize'){
+      const {b,h}=act; const sx=h.includes('e')?1:-1, sy=h.includes('s')?1:-1; const r=b.h/b.w;
+      const center=e.ctrlKey||e.metaKey;
+      const dx=(e.clientX-act.sx)/K, dy=(e.clientY-act.sy)/K;
+      const nw = center ? b.w + (sx*dx + sy*dy/r) : b.w + (sx*dx + sy*dy/r)/2;
+      const minS=Math.max(16/b.w, 16/b.h);
+      let s=Math.max(minS, nw/b.w);
+      const ax = center ? b.x+b.w/2 : (sx>0 ? b.x : b.x+b.w), ay = center ? b.y+b.h/2 : (sy>0 ? b.y : b.y+b.h);
+      const relX = center ? [-b.w/2, b.w/2] : [sx*b.w], relY = center ? [-b.h/2, b.h/2] : [sy*b.h];
+      if(snapOn) s=snapScale(s, ax, ay, relX, relY, act.T, minS);
+      const box={x:ax+(b.x-ax)*s, y:ay+(b.y-ay)*s, w:b.w*s, h:b.h*s};
+      act.orig.forEach(rr=>{ rr.o.x=ax+(rr.x-ax)*s; rr.o.y=ay+(rr.y-ay)*s; rr.o.w=rr.w*s; placeEl(rr.o); });
+      drawGuides(snapOn?guidesFor(box, act.T):[]); placeSelBox();
+    } else {
+      const p=toSlide(e, act.slideR), p0=act.p0;
+      const rc={x:Math.min(p0.x,p.x), y:Math.min(p0.y,p.y), w:Math.abs(p.x-p0.x), h:Math.abs(p.y-p0.y)};
+      const m=$('#marq'); m.hidden=false; Object.assign(m.style,{left:rc.x*K+'px',top:rc.y*K+'px',width:rc.w*K+'px',height:rc.h*K+'px'});
+      const hits=state.objects.filter(o=>{ const b=boxOf(o); return b.x<rc.x+rc.w && b.x+b.w>rc.x && b.y<rc.y+rc.h && b.y+b.h>rc.y; }).map(o=>o.id);
+      selIds=[...new Set([...act.base, ...hits])]; updateSelClasses();
+    }
+    const mt=$('#strip .meta'); if(mt && act.type!=='marquee') mt.textContent=stripMeta();
+  });
+  const endAct=()=>{
+    if(!act) return; const a=act; act=null; drawGuides([]); $('#marq').hidden=true;
+    $('#objs').querySelectorAll('.obj.drag').forEach(x=>x.classList.remove('drag'));
+    if(a.type==='marquee'){ setSel(selIds); return; }
+    if(a.moved){ checkpoint(a.before); saveState(); renderStrip(); }
+    else if(a.clickSingle) setSel([a.clickSingle]);
+  };
+  wrap.addEventListener('pointerup',endAct); wrap.addEventListener('pointercancel',endAct);
+  wrap.addEventListener('dragover',e=>{ if([...e.dataTransfer.items].some(i=>i.kind==='file')){ e.preventDefault(); wrap.classList.add('over'); } });
+  wrap.addEventListener('dragleave',e=>{ if(!wrap.contains(e.relatedTarget)) wrap.classList.remove('over'); });
+  wrap.addEventListener('drop',e=>{ wrap.classList.remove('over'); const f=e.dataTransfer.files[0]; if(!f) return; e.preventDefault();
+    if(/svg/.test(f.type)||/\.svg$/i.test(f.name)){ f.text().then(t=>{ if(!importSVGText(t)) toast('SVGを読み込めませんでした'); }); }
+    else if(/^image\//.test(f.type)){ setBg(f); toast('背景に敷きました'); } });
+
+  // strip
+  $('#strip').addEventListener('click',e=>{
+    const t=e.target.closest('[data-sel]'); if(t){ setSel([t.dataset.sel]); return; }
+    const v=e.target.closest('.thumb[data-v]'); if(v){ restoreVersion(+v.dataset.v); return; }
+    if(e.target.closest('#fixRisk')){ const o=single(); mode='edit'; renderComposer(); $('#input').value=`PowerPointの図形変換で崩れないよう、${risks(cur(o)).join('・')}を使わずに描き直して。見た目はできるだけ保って`; $('#input').focus(); return; }
+    const al=e.target.closest('[data-align]'); if(al&&!busy){ alignSel(al.dataset.align); return; }
+    const a=e.target.closest('[data-act]'); if(!a||busy) return;
+    const k=a.dataset.act;
+    if(k==='dup') dupSel(); else if(k==='front') zSel(true); else if(k==='back') zSel(false); else if(k==='del') delSel();
+    else if(k==='import') $('#svgFile').click();
+    else if(k==='all') setSel(state.objects.map(o=>o.id));
+    else if(k==='bg'){ if($('#slideBg').hidden) $('#bgFile').click(); else { $('#slideBg').hidden=true; renderStrip(); } }
+    else if(k==='clear'){ checkpoint(); state.objects=[]; setSel([]); saveState(); toast('すべて削除しました（Ctrl+Zで戻せます）'); }
+  });
+  $('#strip').addEventListener('change',e=>{ if(e.target.id==='objName'){ const o=single(); if(o){ o.name=e.target.value.trim()||o.name; saveState(); renderComposer(); renderOut(); } } });
+  $('#bgFile').onchange=e=>{ setBg(e.target.files[0]); e.target.value=''; };
+  $('#svgFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) f.text().then(t=>{ if(!importSVGText(t)) toast('SVGを読み込めませんでした'); }); };
+
+  // output
+  $('#outFmt').onchange=e=>{ settings.outFmt=e.target.value; saveSettings(); renderOut(); };
+  $('#outGo').onclick=()=>doOutput();
+  $('#outCaret').onclick=e=>{ e.stopPropagation(); $('#outMenu').hidden=!$('#outMenu').hidden; };
+  $('#outMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-a]'); if(!b||b.disabled) return; settings.outAct=b.dataset.a; saveSettings(); $('#outMenu').hidden=true; renderOut(); doOutput(); });
+  document.addEventListener('click',e=>{ if(!e.target.closest('.split')) $('#outMenu').hidden=true; });
+  $('#undoBtn').onclick=undo; $('#redoBtn').onclick=redo;
+
+  // settings
+  $('#settingsBtn').onclick=()=>openSettings();
+  $('#setClose').onclick=closeSettings;
+  $('#settingsModal').addEventListener('click',e=>{ if(e.target.id==='settingsModal') closeSettings(); });
+  $('#setTabs').addEventListener('click',e=>{ const t=e.target.closest('[data-tab]'); if(t){ setTab=t.dataset.tab; renderSettings(); } });
+  $('#setBody').addEventListener('click',e=>{
+    const sb=e.target.closest('.seg[data-key] button'); if(sb){ const key=sb.parentNode.dataset.key; let v=sb.dataset.v; if(key==='pngScale') v=+v; settings[key]=v; saveSettings(); renderSettings(); return; }
+    const sc=e.target.closest('[data-scene]'); if(sc){ if(sc.dataset.scene==='__add'){ const n={id:'s'+uid(), name:'新しい場面', prompt:''}; settings.scenes.push(n); sceneEdit=n.id; saveSettings(); renderSettings(); $('#sceneName').focus(); $('#sceneName').select(); } else { sceneEdit=sc.dataset.scene; renderSettings(); } }
+  });
+
+  // design
+  $('#dEnabled').onchange=e=>{ design.enabled=e.target.checked; designChanged(); };
+  document.querySelectorAll('[data-use]').forEach(cb=>cb.onchange=()=>{ design.use[cb.dataset.use]=cb.checked; if(cb.checked) design.enabled=true; designChanged(); });
+  $('#palSel').onchange=e=>{ const p=allPalettes().find(x=>x.id===e.target.value); if(!p) return; design.paletteId=p.id; design.colors=clone(p.colors); designChanged(); };
+  $('#sws').addEventListener('input',e=>{ const r=e.target.dataset.role; if(!r) return; design.colors[r]=e.target.value.toUpperCase(); design.presetId=''; saveDesign(); });
+  $('#sws').addEventListener('change',e=>{ if(e.target.dataset.role) renderDesign(); });
+  $('#palSave').onclick=async()=>{ const curP=palettes.find(p=>p.id===design.paletteId); const name=await askName('パレットを保存', curP?curP.name:'マイパレット'); if(!name) return;
+    const ex=palettes.find(p=>p.name===name); if(ex){ ex.colors=clone(design.colors); design.paletteId=ex.id; } else { const p={id:'p'+uid(), name, colors:clone(design.colors)}; palettes.push(p); design.paletteId=p.id; }
+    LS.set('zk2.palettes',palettes); designChanged(); toast(`「${name}」を保存しました`); };
+  $('#palDel').onclick=()=>{ const p=palettes.find(x=>x.id===design.paletteId); if(!p) return; palettes=palettes.filter(x=>x!==p); LS.set('zk2.palettes',palettes); design.paletteId='__none'; designChanged(); toast(`「${p.name}」を削除しました`); };
+  $('#palGenBtn').onclick=()=>{ $('#palGen').hidden=!$('#palGen').hidden; if(!$('#palGen').hidden) $('#palGenText').focus(); };
+  $('#palGenGo').onclick=genPalette;
+  $('#palGenText').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); genPalette(); } });
+  $('#palImgBtn').onclick=()=>$('#palFile').click();
+  $('#palFile').onchange=e=>{ setPalImg(e.target.files[0]); e.target.value=''; };
+  $('#palAttachClear').onclick=clearPalImg;
+  $('#palGen').addEventListener('dragover',e=>e.preventDefault());
+  $('#palGen').addEventListener('drop',e=>{ e.preventDefault(); setPalImg(e.dataTransfer.files[0]); });
+  $('#fontSel').onchange=e=>{ design.font=e.target.value; designChanged(); };
+  [['fs','fs'],['sw','sw'],['radius','radius']].forEach(([id,k])=>$('#'+id).oninput=e=>{ design[k]=parseFloat(e.target.value); design.presetId=''; saveDesign(); $('#'+id+'V').textContent=design[k]+'px'; });
+  $('#tasteChips').addEventListener('click',e=>{ const b=e.target.closest('[data-taste]'); if(!b) return; design.taste = design.taste===b.dataset.taste ? '' : b.dataset.taste; designChanged(); });
+  $('#extra').oninput=e=>{ design.extra=e.target.value; design.presetId=''; saveDesign(); };
+  const snapDesign=()=>{ const d=clone(design); delete d.presetId; return d; };
+  $('#presetSel').onchange=e=>{ const p=presets.find(x=>x.id===e.target.value); if(!p){ design.presetId=''; saveDesign(); renderDesign(); return; } design=Object.assign(clone(DEF_DESIGN), clone(p.design), {presetId:p.id}); saveDesign(); renderDesign(); toast(`「${p.name}」を適用しました`); };
+  $('#presetSave').onclick=async()=>{ const curP=presets.find(p=>p.id===design.presetId); const name=await askName('デザインプリセットを保存', curP?curP.name:''); if(!name) return;
+    const ex=presets.find(p=>p.name===name); if(ex){ ex.design=snapDesign(); design.presetId=ex.id; } else { const p={id:'r'+uid(), name, design:snapDesign()}; presets.push(p); design.presetId=p.id; }
+    LS.set('zk2.presets',presets); saveDesign(); renderDesign(); toast(`「${name}」を保存しました`); };
+  $('#presetDel').onclick=()=>{ const p=presets.find(x=>x.id===design.presetId); if(!p) return; presets=presets.filter(x=>x!==p); LS.set('zk2.presets',presets); design.presetId=''; saveDesign(); renderDesign(); toast(`「${p.name}」を削除しました`); };
+
+  // keyboard
+  let arrowT=0;
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ if(!$('#settingsModal').hidden){ closeSettings(); return; } if(!$('#outMenu').hidden){ $('#outMenu').hidden=true; return; } }
+    if(!$('#settingsModal').hidden || !$('#nameModal').hidden) return;
+    const a=document.activeElement; const typing=a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable);
+    if(typing) return;
+    const mod=e.metaKey||e.ctrlKey, k=e.key.toLowerCase();
+    if(e.key==='Escape' && selIds.length){ setSel([]); return; }
+    if(mod && k==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
+    if(mod && k==='y'){ e.preventDefault(); redo(); return; }
+    if(busy) return;
+    if(mod && k==='a'){ e.preventDefault(); setSel(state.objects.map(o=>o.id)); return; }
+    if((e.key==='Delete'||e.key==='Backspace') && selIds.length){ e.preventDefault(); delSel(); return; }
+    if(mod && k==='d' && selIds.length){ e.preventDefault(); dupSel(); return; }
+    if(mod && k==='c' && state.objects.length){ if(String(window.getSelection())) return; e.preventDefault(); doOutput('copy'); return; }
+    if(selIds.length && /^Arrow/.test(e.key)){ e.preventDefault(); const st=e.shiftKey?10:1; const now=Date.now(); if(now-arrowT>800) checkpoint(); arrowT=now;
+      selObjs().forEach(o=>{ if(e.key==='ArrowLeft') o.x-=st; if(e.key==='ArrowRight') o.x+=st; if(e.key==='ArrowUp') o.y-=st; if(e.key==='ArrowDown') o.y+=st; placeEl(o); }); placeSelBox(); saveState(); }
+  });
+  document.addEventListener('paste',e=>{
+    const a=document.activeElement; const inComposer=a&&a.id==='input'; const typing=a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
+    const f=[...(e.clipboardData?.files||[])].find(f=>/^image\//.test(f.type));
+    if(f && (inComposer || !typing)){ e.preventDefault(); if(/svg/.test(f.type)){ f.text().then(t=>importSVGText(t)); } else if(setRef(f)) toast('参考画像を添付しました'); return; }
+    if(!typing){ const t=e.clipboardData?.getData('text/plain')||''; if(/<svg\b/i.test(t)){ e.preventDefault(); if(!importSVGText(t)) toast('SVGを読み込めませんでした'); } }
+  });
+  renderDesign(); renderAll(); fit();
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fit);
+}
+init();
+})();
+</script>
+
+</body>
+</html>
