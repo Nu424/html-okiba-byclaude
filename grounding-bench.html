@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grounding Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: 左に「画像→探すもの→モデル」の操作列、右にカッティングマット上のステージと結果カード */
+:root{
+  --paper:#edf1ee; --panel:#fbfcfb; --ink:#14201a; --muted:#5a6a61; --line:#d4ddd6; --soft:#e2e9e4;
+  --mat:#2a6956; --mat-grid:rgba(235,255,246,.08); --mat-major:rgba(235,255,246,.18); --mat-ink:rgba(235,255,246,.72);
+  --accent:#ff6a33; --accent-ink:#ffffff; --accent-soft:rgba(255,106,51,.14);
+  --good:#15905a; --bad:#cf3b3b;
+  --f-disp:"Bricolage Grotesque","IBM Plex Sans JP",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0d1411; --panel:#131c18; --ink:#e3ebe6; --muted:#8c9d94; --line:#24312a; --soft:#1a2520;
+  --mat:#1b473a; --mat-grid:rgba(235,255,246,.06); --mat-major:rgba(235,255,246,.14); --mat-ink:rgba(235,255,246,.6);
+  --accent:#ff7a47; --accent-ink:#1a0c05; --accent-soft:rgba(255,122,71,.16); --good:#3cc47f; --bad:#ff6b6b; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --paper:#0d1411; --panel:#131c18; --ink:#e3ebe6; --muted:#8c9d94; --line:#24312a; --soft:#1a2520;
+  --mat:#1b473a; --mat-grid:rgba(235,255,246,.06); --mat-major:rgba(235,255,246,.14); --mat-ink:rgba(235,255,246,.6);
+  --accent:#ff7a47; --accent-ink:#1a0c05; --accent-soft:rgba(255,122,71,.16); --good:#3cc47f; --bad:#ff6b6b; color-scheme:dark; }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14px/1.55 var(--f-body);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* top */
+.top{display:flex;align-items:center;gap:16px;padding-block:14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1640px;margin:0 auto;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font:800 22px/1 var(--f-disp);letter-spacing:-.02em;margin-right:auto}
+.brand svg{width:28px;height:28px}
+.tally{font:500 12px var(--f-mono);color:var(--muted);background:none;border:1px dashed var(--line);border-radius:99px;padding:6px 12px}
+.keypill{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 14px 6px 10px;font-weight:500}
+.keypill .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 20%,transparent)}
+.keypill.ok .dot{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 20%,transparent)}
+.pop{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:64px;z-index:30;width:min(380px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.18);display:grid;gap:10px}
+.pop p{margin:0;color:var(--muted);font-size:12.5px}
+.pop a{color:var(--accent)}
+
+/* layout */
+.app{display:grid;grid-template-columns:330px minmax(0,1fr);gap:22px;max-width:1640px;margin:0 auto;padding-block:4px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (max-width:920px){.app{grid-template-columns:minmax(0,1fr)}}
+.ctrl{display:flex;flex-direction:column;gap:14px;align-self:start;position:sticky;top:12px}
+@media (max-width:920px){.ctrl{position:static}}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:10px}
+.step h2{margin:0;display:flex;align-items:center;gap:8px;font:700 15px/1.2 var(--f-disp);letter-spacing:-.01em}
+.step h2 b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--panel);font:600 12px var(--f-mono)}
+.field{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:var(--r);padding:10px 12px;outline:none}
+.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+.drop{position:relative;display:grid;place-items:center;min-height:120px;border:1.5px dashed var(--line);border-radius:var(--r);background:var(--paper) center/cover no-repeat;cursor:pointer;overflow:hidden;transition:border-color .15s}
+.drop.over{border-color:var(--accent);background-color:var(--accent-soft)}
+.drop .msg{font-size:12.5px;color:var(--muted);text-align:center;padding:10px;background:color-mix(in srgb,var(--panel) 82%,transparent);border-radius:8px}
+.drop.has .msg{position:absolute;left:8px;bottom:8px;padding:3px 8px;font:500 11px var(--f-mono);color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:500}
+.btn:hover{border-color:var(--ink)}
+.btn.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn.small{padding:4px 9px;font-size:12px}
+
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.preset{border:1px solid var(--line);background:none;border-radius:99px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.preset:hover,.preset.on{color:var(--ink);border-color:var(--ink)}
+
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--soft);padding:4px;border-radius:12px}
+.seg button{display:grid;justify-items:center;gap:2px;border:0;background:none;border-radius:9px;padding:7px 2px 6px;font-size:11.5px;color:var(--muted)}
+.seg button svg{width:22px;height:22px}
+.seg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:99px;padding:4px 6px 4px 10px;font-size:12.5px;background:var(--paper);max-width:100%}
+.chip i{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip button{border:0;background:none;color:var(--muted);width:20px;height:20px;border-radius:50%;line-height:1;padding:0}
+.chip button:hover{background:var(--soft);color:var(--ink)}
+.picker{position:relative}
+.list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.18);padding:4px}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 9px;border-radius:8px;cursor:pointer}
+.opt:hover,.opt.hl{background:var(--soft)}
+.opt b{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt small{grid-column:1;color:var(--muted);font:11px var(--f-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt em{grid-row:1/3;grid-column:2;align-self:center;font:11px var(--f-mono);font-style:normal;color:var(--muted);text-align:right}
+.opt em .so{color:var(--good)}
+.list .none{padding:10px;color:var(--muted);font-size:12.5px}
+
+details.adv{border-top:1px solid var(--line);padding-top:8px}
+details.adv summary{cursor:pointer;color:var(--muted);font-size:12.5px;list-style:none}
+details.adv summary::before{content:"＋ "}
+details.adv[open] summary::before{content:"－ "}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px}
+.grid2 label{display:grid;gap:3px;font-size:11.5px;color:var(--muted)}
+.grid2 .field{padding:6px 8px;font-size:12.5px}
+.field.bad{border-color:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 18%,transparent)}
+
+.run{display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:14px;padding:15px;background:var(--accent);color:var(--accent-ink);font:700 17px var(--f-disp);letter-spacing:.01em;box-shadow:0 6px 0 color-mix(in srgb,var(--accent) 60%,#000);transition:transform .08s,box-shadow .08s}
+.run:active{transform:translateY(4px);box-shadow:0 2px 0 color-mix(in srgb,var(--accent) 60%,#000)}
+.run:disabled{filter:grayscale(.8);opacity:.55;cursor:not-allowed}
+.run.stop{background:var(--ink);color:var(--panel);box-shadow:0 6px 0 #000}
+.run kbd{font:500 11px var(--f-mono);opacity:.75;border:1px solid currentColor;border-radius:5px;padding:1px 5px}
+.hint{margin:-4px 2px 0;font-size:12px;color:var(--muted);min-height:1.2em}
+.hint.warn{color:var(--bad)}
+
+/* stage */
+.main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.stagebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin-right:auto}
+.lg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:4px 11px 4px 8px;font-size:12px;user-select:none}
+.lg i{width:11px;height:11px;border-radius:3px;background:var(--c);flex:none}
+.lg.gt i{background:none;border:1.5px dashed var(--ink);border-radius:2px}
+.lg.off{opacity:.42}
+.lg.off i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--c)}
+.mat{position:relative;background-color:var(--mat);background-image:linear-gradient(var(--mat-major) 1px,transparent 1px),linear-gradient(90deg,var(--mat-major) 1px,transparent 1px),linear-gradient(var(--mat-grid) 1px,transparent 1px),linear-gradient(90deg,var(--mat-grid) 1px,transparent 1px);background-size:100px 100px,100px 100px,20px 20px,20px 20px;background-position:-1px -1px;border-radius:16px;padding:30px 28px;display:grid;place-items:center;min-height:300px}
+.mat{}
+@media (max-width:600px){.mat{padding:26px 10px;min-height:200px}}
+.mat canvas{display:block;max-width:100%;border-radius:3px;box-shadow:0 12px 34px rgba(0,0,0,.4)}
+.mat.draw canvas{cursor:crosshair}
+.mat .ruler{position:absolute;font:500 11px var(--f-mono);color:var(--mat-ink);letter-spacing:.04em}
+.mat .r1{left:14px;top:8px}
+.mat .r2{right:14px;bottom:8px}
+.mat .drawtip{position:absolute;left:50%;top:8px;transform:translateX(-50%);font:500 11.5px var(--f-body);color:#fff;background:rgba(0,0,0,.45);padding:2px 10px;border-radius:99px}
+
+/* board */
+.board{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 14px;overflow-x:auto}
+.brow{display:grid;grid-template-columns:minmax(150px,1.3fr) minmax(110px,1fr) minmax(110px,1fr) 64px minmax(120px,.9fr);gap:14px;align-items:center;padding:8px 0;border-top:1px solid var(--line);min-width:640px}
+.brow:first-child{border-top:0}
+.brow.head{font-size:11px;color:var(--muted);letter-spacing:.06em;padding-bottom:4px}
+.brow .nm{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500}
+.brow .nm i{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none}
+.brow .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;font:12px var(--f-mono);font-variant-numeric:tabular-nums}
+.bar u{display:block;height:8px;border-radius:4px;background:var(--soft);overflow:hidden;text-decoration:none}
+.bar u b{display:block;height:100%;background:var(--c);border-radius:4px;transition:width .4s}
+.tag{display:inline-block;font:600 10px var(--f-body);padding:1px 6px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-left:4px;vertical-align:1px}
+.board .empty{padding:10px 0;color:var(--muted);font-size:12.5px}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.card header{display:flex;align-items:center;gap:9px;padding:10px 12px}
+.card header i{width:12px;height:12px;border-radius:4px;background:var(--c);flex:none}
+.card .mn{min-width:0;flex:1}
+.card .mn b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .mn small{display:block;font:11px var(--f-mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic{border:1px solid var(--line);background:none;border-radius:8px;width:30px;height:30px;padding:0;color:var(--muted)}
+.ic:hover{color:var(--ink);border-color:var(--ink)}
+.view{position:relative;background:var(--mat);line-height:0}
+.view canvas{width:100%;height:auto;display:block}
+.scan{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,20,16,.35);line-height:1}
+.scan i{position:absolute;left:0;right:0;height:2px;background:var(--c);box-shadow:0 0 14px 3px var(--c);animation:scan 1.6s ease-in-out infinite alternate}
+@keyframes scan{from{top:4%}to{top:96%}}
+@media (prefers-reduced-motion:reduce){.scan i{animation:none;top:50%}}
+.scan span{font:600 26px var(--f-mono);color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+.errbox{position:absolute;inset:0;display:grid;place-items:center;padding:16px;background:rgba(30,8,8,.62);color:#fff;line-height:1.5;font-size:12.5px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;border-top:1px solid var(--line)}
+.stats div{padding:8px 8px 8px 10px;border-left:1px solid var(--line);min-width:0}
+.stats div:first-child{border-left:0}
+.stats dt{font-size:10.5px;color:var(--muted);letter-spacing:.04em}
+.stats dd{margin:0;font:500 12.5px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stats dd small{font-size:10.5px;color:var(--muted)}
+.card footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.card footer select{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:2px 4px;font-size:12px}
+.pill{font:500 10.5px var(--f-mono);border:1px solid var(--line);border-radius:99px;padding:1px 7px}
+.pill.schema{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+.pill.fix{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.card footer .sp{margin-left:auto}
+.raw{margin:0;max-height:260px;overflow:auto;padding:10px 12px;border-top:1px solid var(--line);background:var(--paper);font:11.5px/1.5 var(--f-mono);white-space:pre-wrap;word-break:break-all}
+.view.zoom{cursor:zoom-in}
+.view .zhint{position:absolute;right:8px;top:8px;line-height:1;font:500 11px var(--f-body);color:#fff;background:rgba(0,0,0,.5);padding:4px 8px;border-radius:99px;opacity:0;transition:opacity .15s;pointer-events:none}
+.view.zoom:hover .zhint,.view.zoom:focus-visible .zhint{opacity:1}
+
+/* modal: 1モデルだけを大きく確認 */
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(6,12,9,.62);backdrop-filter:blur(3px);padding:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.mbox{width:min(1500px,100%);height:min(940px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.4);animation:pop .16s ease-out}
+@keyframes pop{from{transform:scale(.97);opacity:0}}
+@media (prefers-reduced-motion:reduce){.mbox{animation:none}}
+.mhead{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mhead>i{width:14px;height:14px;border-radius:4px;background:var(--c);flex:none}
+.mhead .mn{min-width:0;margin-right:auto}
+.mhead .mn b{display:block;font:700 17px/1.2 var(--f-disp)}
+.mhead .mn small{font:11px var(--f-mono);color:var(--muted)}
+.mstats{display:flex;gap:16px;flex-wrap:wrap;font:500 12.5px var(--f-mono);font-variant-numeric:tabular-nums}
+.mstats span{display:grid;line-height:1.3}
+.mstats em{font:10.5px var(--f-body);font-style:normal;color:var(--muted)}
+.mtools{display:flex;gap:6px;align-items:center}
+.mbody{display:grid;grid-template-columns:minmax(0,1fr) 280px;min-height:0}
+@media (max-width:820px){.mbody{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) 34%}}
+.mstage{position:relative;background-color:var(--mat);background-image:linear-gradient(var(--mat-major) 1px,transparent 1px),linear-gradient(90deg,var(--mat-major) 1px,transparent 1px);background-size:100px 100px;display:grid;place-items:center;min-height:0;min-width:0;overflow:hidden}
+.mstage canvas{display:block;box-shadow:0 12px 34px rgba(0,0,0,.4);border-radius:3px}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:20px;line-height:1}
+.nav:hover{background:rgba(0,0,0,.7)}
+.nav.l{left:10px}.nav.r{right:10px}
+.mlist{border-left:1px solid var(--line);overflow:auto;padding:8px;display:flex;flex-direction:column;gap:2px;min-height:0}
+@media (max-width:820px){.mlist{border-left:0;border-top:1px solid var(--line)}}
+.mlist h3{margin:4px 6px 6px;font:600 11px var(--f-body);color:var(--muted);letter-spacing:.06em}
+.obj{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:2px 8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:default}
+.obj:hover,.obj.hl{background:var(--soft)}
+.obj .no{font:600 11px var(--f-mono);color:var(--muted)}
+.obj b{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obj small{grid-column:2/4;font:10.5px var(--f-mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obj .iou{font:500 11px var(--f-mono);padding:1px 6px;border-radius:99px;background:var(--soft)}
+.obj .iou.hit{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.obj .iou.miss{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.mlist .none{padding:16px 8px;color:var(--muted);font-size:12.5px}
+.mlist pre{margin:6px 0 0;padding:8px;border-radius:8px;background:var(--paper);font:11px/1.5 var(--f-mono);white-space:pre-wrap;word-break:break-all;max-height:none}
+.cards .empty{grid-column:1/-1;border:1.5px dashed var(--line);border-radius:14px;padding:26px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="7" width="22" height="18" rx="2" fill="none" stroke="var(--accent)" stroke-width="2.4"/><path d="M16 2v8M16 22v8M2 16h8M22 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/></svg>
+    Grounding Bench
+  </div>
+  <button class="tally mono" id="tally" title="累計（クリックでリセット）">累計 $0.0000 · 0回</button>
+  <button class="keypill" id="keyBtn"><span class="dot"></span><span id="keyLabel">APIキー未設定</span></button>
+</header>
+
+<div class="pop" id="keyPop" hidden>
+  <b>OpenRouter APIキー</b>
+  <input class="field mono" id="keyInput" type="password" placeholder="sk-or-v1-…" autocomplete="off">
+  <div class="row"><button class="btn on" id="keySave">保存</button><button class="btn" id="keyShow">表示</button><button class="btn" id="keyDel">削除</button></div>
+  <p>このブラウザのlocalStorageにだけ保存され、openrouter.ai 以外には送られない。キーは <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> で発行。</p>
+</div>
+
+<div class="app">
+  <aside class="ctrl">
+    <section class="step">
+      <h2><b>1</b>画像</h2>
+      <label class="drop" id="drop" for="file">
+        <input type="file" id="file" accept="image/*" hidden>
+        <span class="msg" id="dropMsg">ドロップ・貼り付け・クリック</span>
+      </label>
+      <div class="row">
+        <button class="btn small" id="testBtn" type="button">テスト盤</button>
+        <button class="btn small" id="shuffleBtn" type="button" hidden>配置を変える</button>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2><b>2</b>探すもの</h2>
+      <input class="field" id="target" placeholder="例: 人, 自転車, 信号機" autocomplete="off">
+      <div class="presets" id="presets" hidden></div>
+      <div class="seg" id="mode" role="radiogroup">
+        <button data-m="box" role="radio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/></svg>枠</button>
+        <button data-m="point" role="radio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/></svg>点</button>
+        <button data-m="polygon" role="radio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l8 6-3 10H7l-3-10z"/><circle cx="12" cy="3.5" r="1.5" fill="currentColor"/><circle cx="20" cy="9.5" r="1.5" fill="currentColor"/><circle cx="17" cy="19.5" r="1.5" fill="currentColor"/><circle cx="7" cy="19.5" r="1.5" fill="currentColor"/><circle cx="4" cy="9.5" r="1.5" fill="currentColor"/></svg>輪郭</button>
+        <button data-m="mask" role="radio"><svg viewBox="0 0 24 24"><path d="M7 5c4-2 11 0 12 5s-2 10-7 9-9-2-9-7 1-5.5 4-7z" fill="currentColor" opacity=".85"/></svg>マスク</button>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2><b>3</b>モデル</h2>
+      <div class="chips" id="chips"></div>
+      <div class="picker">
+        <input class="field" id="modelSearch" placeholder="モデルを追加（名前やIDで検索）" autocomplete="off">
+        <div class="list" id="modelList" hidden></div>
+      </div>
+      <details class="adv" id="adv">
+        <summary>詳細設定</summary>
+        <div class="grid2">
+          <label>送信サイズ（長辺）
+            <select class="field" id="s_size"><option value="768">768px</option><option value="1024">1024px</option><option value="1536">1536px</option><option value="2048">2048px</option><option value="0">原寸</option></select></label>
+          <label>座標系
+            <select class="field" id="s_fmt"><option value="auto">モデル別に自動</option><option value="g1000">0–1000 [y,x]</option><option value="q1000">0–1000 [x,y]</option><option value="px">ピクセル</option><option value="unit">0–1</option></select></label>
+          <label>構造化出力
+            <select class="field" id="s_structured"><option value="auto">対応なら使う</option><option value="off">使わない</option></select></label>
+          <label>思考（reasoning）
+            <select class="field" id="s_reasoning"><option value="default">モデル既定</option><option value="none">なし</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
+          <label>temperature
+            <input class="field mono" id="s_temp" type="text" inputmode="decimal" placeholder="未指定" autocomplete="off" title="空欄 または null で未指定（モデル既定値）。0〜2の数値で指定"></label>
+          <label>max tokens（0=自動）
+            <input class="field mono" id="s_maxTok" type="number" min="0" step="256"></label>
+        </div>
+      </details>
+    </section>
+
+    <button class="run" id="run"><span id="runLabel">計測する</span><kbd id="runKbd">⌘↵</kbd></button>
+    <p class="hint" id="hint"></p>
+  </aside>
+
+  <section class="main">
+    <div class="stagebar">
+      <div class="legend" id="legend"></div>
+      <button class="btn small" id="labelsBtn">ラベル</button>
+      <button class="btn small" id="gtBtn">正解を描く</button>
+      <button class="btn small" id="pngBtn">PNG保存</button>
+      <button class="btn small" id="jsonBtn">JSON書き出し</button>
+    </div>
+    <div class="mat" id="mat">
+      <span class="ruler r1" id="r1"></span>
+      <span class="ruler r2" id="r2"></span>
+      <span class="drawtip" id="drawTip" hidden>ドラッグで正解の枠を追加 · クリックで削除</span>
+      <canvas id="stage"></canvas>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="cards" id="cards"></div>
+  </section>
+</div>
+
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mName">
+  <div class="mbox">
+    <div class="mhead">
+      <i></i>
+      <div class="mn"><b id="mName"></b><small id="mId"></small></div>
+      <div class="mstats" id="mStats"></div>
+      <div class="mtools">
+        <button class="btn small" id="mLabels">ラベル</button>
+        <button class="btn small" id="mGt">正解</button>
+        <button class="ic" id="mClose" aria-label="閉じる" title="閉じる (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="mbody">
+      <div class="mstage" id="mStage">
+        <canvas id="mCanvas"></canvas>
+        <button class="nav l" id="mPrev" aria-label="前のモデル" title="前のモデル (←)">‹</button>
+        <button class="nav r" id="mNext" aria-label="次のモデル" title="次のモデル (→)">›</button>
+      </div>
+      <div class="mlist" id="mList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=(s,el=document)=>el.querySelector(s);
+const LS={get(k,d){try{const v=localStorage.getItem('gb.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('gb.'+k,JSON.stringify(v))}catch(e){}}};
+const PALETTE=['#ff4d6d','#ffb000','#1fc7a6','#4d7cff','#c86bfa','#7ed957','#ff7a3d','#19b5fe'];
+const API='https://openrouter.ai/api/v1';
+const FALLBACK_MODELS=['google/gemini-2.5-flash','anthropic/claude-sonnet-4.5','openai/gpt-5','qwen/qwen3-vl-235b-a22b-instruct'];
+const MODE_NAME={box:'枠',point:'点',polygon:'輪郭',mask:'マスク'};
+const FMT_NAME={g1000:'0–1000 [y,x]',q1000:'0–1000 [x,y]',px:'ピクセル',unit:'0–1'};
+const SYS='You are a precise visual grounding engine. Look carefully at the image and localize objects exactly. Respond with JSON only, no prose.';
+
+const S={
+  key:LS.get('key',''),
+  models:LS.get('models',null),
+  settings:Object.assign({size:'1024',fmt:'auto',structured:'auto',reasoning:'default',temp:null,maxTok:0},LS.get('settings',{})),
+  mode:LS.get('mode','box'),
+  img:null, test:null, preset:null, gt:[], runs:[], hidden:new Set(),
+  labels:LS.get('labels',true), gtMode:false, catalog:new Map(), catalogOk:null,
+  tally:LS.get('tally',{cost:0,n:0}), runningCount:0, lastSend:null, lastQuery:null
+};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>v==null||isNaN(v)?'—':(v<0.001?'$'+v.toFixed(5):'$'+v.toFixed(4));
+const secs=ms=>ms==null?'—':(ms/1000).toFixed(ms<10000?2:1)+'s';
+const fmtTok=n=>n==null?'—':(n>=10000?(n/1000).toFixed(1)+'k':String(n));
+const isMac=/Mac|iPhone|iPad/.test(navigator.platform||'');
+$('#runKbd').textContent=isMac?'⌘↵':'Ctrl↵';
+
+/* ---------- key ---------- */
+function renderKey(){
+  const ok=!!S.key; $('#keyBtn').classList.toggle('ok',ok);
+  $('#keyLabel').textContent=ok?'キー '+S.key.slice(0,9)+'…'+S.key.slice(-4):'APIキー未設定';
+  updateHint();
+}
+$('#keyBtn').onclick=e=>{e.stopPropagation();const p=$('#keyPop');p.hidden=!p.hidden;if(!p.hidden){$('#keyInput').value=S.key;$('#keyInput').focus()}};
+$('#keySave').onclick=()=>{S.key=$('#keyInput').value.trim();LS.set('key',S.key);$('#keyPop').hidden=true;renderKey()};
+$('#keyInput').onkeydown=e=>{if(e.key==='Enter')$('#keySave').click()};
+$('#keyShow').onclick=()=>{const i=$('#keyInput');i.type=i.type==='password'?'text':'password';$('#keyShow').textContent=i.type==='password'?'表示':'隠す'};
+$('#keyDel').onclick=()=>{S.key='';LS.set('key','');$('#keyInput').value='';renderKey()};
+document.addEventListener('click',e=>{if(!$('#keyPop').hidden&&!$('#keyPop').contains(e.target))$('#keyPop').hidden=true;if(!$('.picker').contains(e.target))$('#modelList').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden){closeModal();return}if(e.key==='Escape'){$('#keyPop').hidden=true;$('#modelList').hidden=true;if(S.gtMode)toggleGt(false)}});
+
+/* ---------- tally ---------- */
+function renderTally(){$('#tally').textContent=`累計 ${money(S.tally.cost)} · ${S.tally.n}回`}
+$('#tally').onclick=()=>{const b=$('#tally');if(b.dataset.arm){S.tally={cost:0,n:0};LS.set('tally',S.tally);delete b.dataset.arm;renderTally()}else{b.dataset.arm=1;b.textContent='もう一度押すとリセット';setTimeout(()=>{delete b.dataset.arm;renderTally()},2200)}};
+
+/* ---------- image input ---------- */
+function setImage(src,name,isTest){
+  const w=src.naturalWidth||src.width,h=src.naturalHeight||src.height;
+  S.img={src,w,h,name}; abortAll(); S.runs=[]; S.hidden.clear();
+  if(!isTest){S.test=null;S.preset=null;S.gt=[];$('#presets').hidden=true;$('#shuffleBtn').hidden=true}
+  const th=document.createElement('canvas');const sc=Math.min(1,560/Math.max(w,h));th.width=Math.round(w*sc);th.height=Math.round(h*sc);th.getContext('2d').drawImage(src,0,0,th.width,th.height);
+  const d=$('#drop');d.style.backgroundImage=`url(${th.toDataURL('image/jpeg',.8)})`;d.classList.add('has');
+  $('#dropMsg').textContent=`${name} · ${w}×${h}`;
+  renderAll();
+}
+function loadFile(f){
+  if(!f||!f.type.startsWith('image/'))return;
+  const url=URL.createObjectURL(f);const im=new Image();
+  im.onload=()=>setImage(im,f.name||'貼り付け画像',false);
+  im.src=url;
+}
+$('#file').onchange=e=>{loadFile(e.target.files[0]);e.target.value=''};
+const drop=$('#drop');
+['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
+$('#mat').addEventListener('dragover',e=>e.preventDefault());
+$('#mat').addEventListener('drop',e=>{e.preventDefault();loadFile(e.dataTransfer.files[0])});
+window.addEventListener('paste',e=>{const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(it){e.preventDefault();loadFile(it.getAsFile())}});
+
+/* ---------- test board (synthetic scene with known answers) ---------- */
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const COLORS=[{k:'red',c:'#e23b3b'},{k:'blue',c:'#2f6fdb'},{k:'yellow',c:'#f2b705'},{k:'green',c:'#2a9d5b'}];
+const SHAPES=['circle','star','triangle','square'];
+const PRESETS=[
+  {q:'星',f:o=>o.shape==='star'},
+  {q:'赤い図形',f:o=>o.color==='red'},
+  {q:'丸',f:o=>o.shape==='circle'},
+  {q:'緑のもの',f:o=>o.color==='green'},
+  {q:'三角形',f:o=>o.shape==='triangle'},
+  {q:'すべての図形',f:()=>true},
+];
+function shapePts(shape,cx,cy,r,rot){
+  const pts=[];
+  if(shape==='star'){for(let i=0;i<10;i++){const a=rot-Math.PI/2+i*Math.PI/5,rr=i%2?r*.45:r;pts.push([cx+Math.cos(a)*rr,cy+Math.sin(a)*rr])}}
+  else if(shape==='triangle'){for(let i=0;i<3;i++){const a=rot-Math.PI/2+i*2*Math.PI/3;pts.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r])}}
+  else if(shape==='square'){for(let i=0;i<4;i++){const a=rot+Math.PI/4+i*Math.PI/2;pts.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r])}}
+  return pts;
+}
+function makeTestBoard(seed){
+  const W=1200,H=800,R=rng(seed),c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,'#e7ecef');g.addColorStop(1,'#d9e0e4');x.fillStyle=g;x.fillRect(0,0,W,H);
+  for(let i=0;i<2600;i++){x.fillStyle=`rgba(0,0,0,${R()*.035})`;x.fillRect(R()*W,R()*H,1.5,1.5)}
+  const objs=[],placed=[];
+  for(let i=0;i<13;i++){
+    const shape=SHAPES[i%4],col=COLORS[(i+Math.floor(i/4))%4];
+    for(let t=0;t<600;t++){
+      const r=46+R()*40,cx=r+20+R()*(W-2*r-40),cy=r+20+R()*(H-2*r-40),rot=shape==='circle'?0:R()*Math.PI*2;
+      let bb;
+      if(shape==='circle')bb=[cx-r,cy-r,cx+r,cy+r];
+      else{const p=shapePts(shape,cx,cy,r,rot);bb=[Math.min(...p.map(q=>q[0])),Math.min(...p.map(q=>q[1])),Math.max(...p.map(q=>q[0])),Math.max(...p.map(q=>q[1]))]}
+      if(placed.some(b=>!(bb[2]+18<b[0]||bb[0]-18>b[2]||bb[3]+18<b[1]||bb[1]-18>b[3])))continue;
+      placed.push(bb);
+      x.save();x.shadowColor='rgba(0,0,0,.22)';x.shadowBlur=14;x.shadowOffsetY=6;x.fillStyle=col.c;x.beginPath();
+      if(shape==='circle')x.arc(cx,cy,r,0,Math.PI*2);else{const p=shapePts(shape,cx,cy,r,rot);p.forEach((q,j)=>j?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]));x.closePath()}
+      x.fill();x.restore();
+      objs.push({shape,color:col.k,box:[bb[0]/W,bb[1]/H,bb[2]/W,bb[3]/H]});
+      break;
+    }
+  }
+  return {canvas:c,objs,seed};
+}
+function useTestBoard(seed){
+  const tb=makeTestBoard(seed);S.test=tb;
+  setImage(tb.canvas,'テスト盤',true);
+  $('#shuffleBtn').hidden=false;
+  const pr=$('#presets');pr.hidden=false;pr.innerHTML='';
+  PRESETS.forEach(p=>{const b=document.createElement('button');b.className='preset';b.textContent=p.q;b.onclick=()=>applyPreset(p);pr.appendChild(b)});
+  applyPreset(PRESETS.find(p=>p.q===S.preset)||PRESETS[0]);
+}
+function applyPreset(p){
+  S.preset=p.q;$('#target').value=p.q;
+  S.gt=S.test.objs.filter(p.f).map(o=>({box:o.box.slice(),label:p.q}));
+  [...$('#presets').children].forEach(b=>b.classList.toggle('on',b.textContent===p.q));
+  renderAll();
+}
+$('#testBtn').onclick=()=>useTestBoard(S.test?S.test.seed:7);
+$('#shuffleBtn').onclick=()=>useTestBoard(Math.floor(Math.random()*1e6));
+$('#target').addEventListener('input',()=>{
+  if(S.test&&S.preset&&$('#target').value!==S.preset){S.preset=null;S.gt=[];[...$('#presets').children].forEach(b=>b.classList.remove('on'));renderAll()}
+  updateHint();
+});
+
+/* ---------- mode ---------- */
+function renderMode(){[...$('#mode').children].forEach(b=>{const on=b.dataset.m===S.mode;b.classList.toggle('on',on);b.setAttribute('aria-checked',on)});updateHint()}
+$('#mode').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.mode=b.dataset.m;LS.set('mode',S.mode);renderMode()};
+
+/* ---------- settings ---------- */
+/* temperature: 空欄/null = 未指定（リクエストに含めない） */
+if(S.settings.v!==2){S.settings.temp=null;S.settings.v=2;LS.set('settings',S.settings)}
+function parseTemp(v){const t=String(v??'').trim().toLowerCase();if(t===''||t==='null'||t==='none'||t==='未指定')return{ok:true,val:null};const n=Number(t);return Number.isFinite(n)&&n>=0&&n<=2?{ok:true,val:n}:{ok:false}}
+{const el=$('#s_temp');el.value=S.settings.temp==null?'':String(S.settings.temp);
+  el.addEventListener('input',()=>{const r=parseTemp(el.value);el.classList.toggle('bad',!r.ok);if(r.ok){S.settings.temp=r.val;LS.set('settings',S.settings);updateHint()}});
+  el.addEventListener('blur',()=>{if(!parseTemp(el.value).ok){flashHint('temperature は空欄（未指定）か 0〜2 の数値');}});}
+['size','fmt','structured','reasoning','maxTok'].forEach(k=>{
+  const el=$('#s_'+k);el.value=S.settings[k];
+  el.addEventListener('change',()=>{S.settings[k]=el.type==='number'?(+el.value||0):el.value;LS.set('settings',S.settings);updateHint()});
+});
+
+/* ---------- models ---------- */
+const shortName=id=>{const m=S.catalog.get(id);return m?.name?m.name.replace(/^[^:]+:\s*/,''):id.split('/').pop()};
+const colorOf=id=>PALETTE[Math.max(0,S.models.indexOf(id))%PALETTE.length];
+function perM(p){const v=parseFloat(p);return isNaN(v)?null:v*1e6}
+function priceStr(m){const a=perM(m?.pricing?.prompt),b=perM(m?.pricing?.completion);if(a==null||b==null)return'';const f=v=>v===0?'0':v<1?v.toFixed(2):v.toFixed(v<10?2:1);return `$${f(a)} / $${f(b)}`}
+function structuredSupport(id){const sp=S.catalog.get(id)?.supported_parameters;if(!sp)return null;return sp.includes('structured_outputs')?'schema':sp.includes('response_format')?'json':'prompt'}
+function saveModels(){LS.set('models',S.models)}
+function renderChips(){
+  const el=$('#chips');el.innerHTML='';
+  S.models.forEach(id=>{
+    const c=document.createElement('span');c.className='chip';c.style.setProperty('--c',colorOf(id));c.title=id;
+    c.innerHTML=`<i></i><span>${esc(shortName(id))}</span><button aria-label="外す">×</button>`;
+    c.querySelector('button').onclick=()=>{S.models=S.models.filter(m=>m!==id);saveModels();renderChips();updateHint()};
+    el.appendChild(c);
+  });
+  if(!S.models.length)el.innerHTML='<span class="hint" style="margin:0">下の検索から追加</span>';
+}
+function pickDefaults(list){
+  const rules=[/^google\/gemini-[\d.]+-(pro|flash)(-preview)?$/,/^anthropic\/claude-(sonnet|opus)-[\d.]+$/,/^openai\/gpt-\d+(\.\d+)?$/,/^qwen\/qwen[\d.]*-vl/];
+  const out=[];
+  rules.forEach((r,i)=>{const m=list.find(m=>r.test(m.id)&&!m.id.includes(':'));out.push(m?m.id:FALLBACK_MODELS[i])});
+  return out;
+}
+async function loadCatalog(){
+  try{
+    const r=await fetch(API+'/models');const j=await r.json();
+    const list=(j.data||[]).filter(m=>(m.architecture?.input_modalities||[]).includes('image')).sort((a,b)=>(b.created||0)-(a.created||0));
+    list.forEach(m=>S.catalog.set(m.id,m));S.catalogOk=true;
+    if(!S.models){S.models=pickDefaults(list);saveModels()}
+  }catch(e){S.catalogOk=false;if(!S.models){S.models=FALLBACK_MODELS.slice();saveModels()}}
+  renderChips();updateHint();
+}
+let hl=0,optItems=[];
+function renderList(){
+  const q=$('#modelSearch').value.trim().toLowerCase(),L=$('#modelList');
+  const toks=q.split(/\s+/).filter(Boolean);
+  optItems=[...S.catalog.values()].filter(m=>!S.models.includes(m.id)&&toks.every(t=>(m.id+' '+(m.name||'')).toLowerCase().includes(t))).slice(0,60);
+  if(q.includes('/')&&!S.catalog.has(q)&&!S.models.includes(q))optItems.unshift({id:q,name:'このIDをそのまま使う',raw:true});
+  hl=Math.min(hl,Math.max(0,optItems.length-1));
+  if(!optItems.length){L.innerHTML=`<div class="none">${S.catalogOk===false?'モデル一覧を取得できなかった。provider/model の形でIDを直接入力してEnter':'見つからない'}</div>`;L.hidden=false;return}
+  L.innerHTML=optItems.map((m,i)=>{const s=structuredSupport(m.id);return `<div class="opt${i===hl?' hl':''}" data-i="${i}"><b>${esc(m.raw?m.name:shortName(m.id))}</b><small>${esc(m.id)}</small><em>${esc(priceStr(m))}${s==='schema'?'<br><span class="so">{ } schema</span>':s==='json'?'<br><span>{ } json</span>':''}</em></div>`}).join('');
+  L.hidden=false;
+}
+function addModel(id){
+  if(!id||S.models.includes(id))return;
+  if(S.models.length>=PALETTE.length){flashHint(`比較は${PALETTE.length}モデルまで`);return}
+  S.models.push(id);saveModels();renderChips();$('#modelSearch').value='';$('#modelList').hidden=true;updateHint();
+}
+$('#modelSearch').addEventListener('focus',renderList);
+$('#modelSearch').addEventListener('input',()=>{hl=0;renderList()});
+$('#modelSearch').addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){hl=Math.min(hl+1,optItems.length-1);renderList();e.preventDefault()}
+  else if(e.key==='ArrowUp'){hl=Math.max(hl-1,0);renderList();e.preventDefault()}
+  else if(e.key==='Enter'){e.preventDefault();if(optItems[hl])addModel(optItems[hl].id)}
+});
+$('#modelList').addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(o){e.preventDefault();addModel(optItems[+o.dataset.i].id)}});
+
+/* ---------- hint ---------- */
+let hintTimer=null;
+function blockReason(){
+  if(!S.key)return'右上でOpenRouterのAPIキーを設定';
+  if(!S.img)return'画像を入れる';
+  if(!$('#target').value.trim())return'探すものを入力';
+  if(!S.models||!S.models.length)return'モデルを1つ以上選ぶ';
+  return null;
+}
+function updateHint(){
+  if(hintTimer)return;
+  const h=$('#hint'),r=blockReason(),running=S.runningCount>0;
+  $('#run').disabled=!!r&&!running;
+  h.classList.toggle('warn',!!r&&!running);
+  if(running)h.textContent=`計測中… ${S.runningCount}件`;
+  else if(r)h.textContent=r;
+  else{const sz=+S.settings.size;h.textContent=`${S.models.length}モデル · ${MODE_NAME[S.mode]} · 送信 ${sz?sz+'px':'原寸'}${S.settings.temp!=null?' · temp '+S.settings.temp:''}`}
+}
+function flashHint(t){const h=$('#hint');h.textContent=t;h.classList.add('warn');clearTimeout(hintTimer);hintTimer=setTimeout(()=>{hintTimer=null;updateHint()},2400)}
+
+/* ---------- prompt & schema ---------- */
+function coordText(fmt,sw,sh){
+  return {g1000:'Coordinates are normalized to 0-1000 (0 = top/left edge, 1000 = bottom/right edge), written in [y, x] order.',
+    q1000:'Coordinates are normalized to 0-1000 (0 = left/top edge, 1000 = right/bottom edge), written in [x, y] order.',
+    px:`Coordinates are absolute pixel positions in this ${sw}x${sh} image (origin at top-left), written in [x, y] order.`,
+    unit:'Coordinates are normalized floats from 0.0 to 1.0 (origin at top-left), written in [x, y] order.'}[fmt];
+}
+function buildPrompt(mode,fmt,target,sw,sh){
+  const yx=fmt==='g1000';
+  const box=yx?'"box_2d": [ymin, xmin, ymax, xmax]':'"box_2d": [xmin, ymin, xmax, ymax]';
+  const pt=yx?'"point": [y, x] at the visual center of the object':'"point": [x, y] at the visual center of the object';
+  const poly=yx?'"polygon": [[y, x], [y, x], ...] with 12-48 vertices tracing the object outline in order':'"polygon": [[x, y], [x, y], ...] with 12-48 vertices tracing the object outline in order';
+  const fields={box:[box],point:[pt],polygon:[poly],mask:[box,'"mask": a base64-encoded PNG segmentation mask (grayscale probability 0-255) covering exactly the box_2d region']}[mode];
+  return [
+    `Find every instance of: ${target}`,
+    `The image is ${sw}x${sh} pixels. ${coordText(fmt,sw,sh)}`,
+    `Return {"objects": [...]} where each object has:`,
+    `- "label": a short name in the same language as the query (add a distinguishing detail when there are several)`,
+    ...fields.map(f=>'- '+f),
+    `List each instance separately. If nothing matches, return {"objects": []}. Output JSON only.`
+  ].join('\n');
+}
+function schemaFor(mode){
+  const num={type:'number'},props={label:{type:'string'}},req=['label'];
+  if(mode==='box'||mode==='mask'){props.box_2d={type:'array',items:num};req.push('box_2d')}
+  if(mode==='point'){props.point={type:'array',items:num};req.push('point')}
+  if(mode==='polygon'){props.polygon={type:'array',items:{type:'array',items:num}};req.push('polygon')}
+  if(mode==='mask'){props.mask={type:'string'};req.push('mask')}
+  return {name:'grounding',strict:true,schema:{type:'object',properties:{objects:{type:'array',items:{type:'object',properties:props,required:req,additionalProperties:false}}},required:['objects'],additionalProperties:false}};
+}
+const autoFmt=id=>/gemini|gemma/i.test(id)?'g1000':/qwen/i.test(id)?'q1000':'px';
+
+/* ---------- parsing ---------- */
+function extractJSON(t){
+  if(!t)return null;let s=String(t).trim();
+  const f=s.match(/```(?:json)?\s*([\s\S]*?)```/i);if(f)s=f[1].trim();
+  try{return JSON.parse(s)}catch(e){}
+  const i=s.search(/[\[{]/);if(i<0)return null;
+  const close=s[i]==='['?']':'}',j=s.lastIndexOf(close);
+  if(j>i){try{return JSON.parse(s.slice(i,j+1))}catch(e){}}
+  const k=s.lastIndexOf('}');
+  if(k>i)for(const suf of [']}',']','}]}','']){try{return JSON.parse(s.slice(i,k+1)+suf)}catch(e){}}
+  return null;
+}
+function toList(d){
+  if(Array.isArray(d))return d;
+  if(d&&typeof d==='object'){
+    for(const k of ['objects','detections','results','items','boxes','annotations','predictions','data'])if(Array.isArray(d[k]))return d[k];
+    if(['box_2d','bbox','box','point','polygon','mask'].some(k=>k in d))return[d];
+    const a=Object.values(d).find(Array.isArray);return a||[];
+  }
+  return null;
+}
+function allCoords(list){
+  const out=[];const walk=v=>{if(typeof v==='number')out.push(v);else if(Array.isArray(v))v.forEach(walk);else if(v&&typeof v==='object')Object.values(v).forEach(walk)};
+  list.forEach(o=>{if(o&&typeof o==='object')['box_2d','bbox','box','bbox_2d','bounding_box','point','point_2d','center','polygon','points','contour','vertices'].forEach(k=>o[k]!=null&&walk(o[k]))});
+  return out;
+}
+function normObj(o,fmt,sw,sh){
+  if(!o||typeof o!=='object')return null;
+  const sx=v=>fmt==='px'?v/sw:fmt==='unit'?v:v/1000, sy=v=>fmt==='px'?v/sh:fmt==='unit'?v:v/1000, yx=fmt==='g1000';
+  const pick=(...ks)=>{for(const k of ks)if(o[k]!=null)return o[k];return null};
+  const out={label:String(pick('label','name','class','object','category')??'')};
+  const fix=b=>[Math.min(b[0],b[2]),Math.min(b[1],b[3]),Math.max(b[0],b[2]),Math.max(b[1],b[3])];
+  const pair=p=>{
+    if(Array.isArray(p)){const a=+p[0],b=+p[1];if(isNaN(a)||isNaN(b))return null;return yx?[sx(b),sy(a)]:[sx(a),sy(b)]}
+    if(p&&typeof p==='object'&&p.x!=null&&p.y!=null)return[sx(+p.x),sy(+p.y)];return null;
+  };
+  let b=pick('box_2d','bbox','box','bbox_2d','bounding_box','box2d');
+  if(Array.isArray(b)){const n=b.flat().map(Number);if(n.length>=4&&!n.slice(0,4).some(isNaN)){const[a,c,d,e]=n;out.box=fix(yx?[sx(c),sy(a),sx(e),sy(d)]:[sx(a),sy(c),sx(d),sy(e)])}}
+  else if(b&&typeof b==='object'){
+    const g=(...k)=>{for(const kk of k)if(b[kk]!=null)return +b[kk];return null};
+    let x1=g('x1','xmin','left','x'),y1=g('y1','ymin','top','y'),x2=g('x2','xmax','right'),y2=g('y2','ymax','bottom');
+    const w=g('width','w'),h=g('height','h');if(x2==null&&w!=null)x2=x1+w;if(y2==null&&h!=null)y2=y1+h;
+    if(![x1,y1,x2,y2].some(v=>v==null||isNaN(v)))out.box=fix([sx(x1),sy(y1),sx(x2),sy(y2)]);
+  }
+  const p=pick('point','point_2d','center','pt');if(p!=null)out.point=pair(p);
+  let pl=pick('polygon','points','contour','vertices','outline');
+  if(Array.isArray(pl)&&pl.length){
+    if(Array.isArray(pl[0])&&Array.isArray(pl[0][0]))pl=pl[0];
+    if(typeof pl[0]==='number'){const t=[];for(let i=0;i+1<pl.length;i+=2)t.push([pl[i],pl[i+1]]);pl=t}
+    const pts=pl.map(pair).filter(Boolean);
+    if(pts.length>=3){out.poly=pts;if(!out.box)out.box=[Math.min(...pts.map(q=>q[0])),Math.min(...pts.map(q=>q[1])),Math.max(...pts.map(q=>q[0])),Math.max(...pts.map(q=>q[1]))]}
+    else if(pts.length===1&&!out.point)out.point=pts[0];
+  }
+  const m=pick('mask','segmentation');if(typeof m==='string'&&m.length>20)out.maskSrc=m;
+  if(!out.box&&!out.point&&!out.poly)return null;
+  return out;
+}
+function hexRgb(h){const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]}
+function decodeMasks(run){
+  const rgb=hexRgb(run.color);
+  return Promise.all(run.objs.filter(o=>o.maskSrc&&o.box).map(o=>new Promise(res=>{
+    let src=o.maskSrc.trim().replace(/\s/g,'');if(!src.startsWith('data:'))src='data:image/png;base64,'+src;
+    const im=new Image();
+    im.onload=()=>{try{const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const x=c.getContext('2d');x.drawImage(im,0,0);const d=x.getImageData(0,0,c.width,c.height),p=d.data;
+      for(let i=0;i<p.length;i+=4){const v=Math.min(p[i+3],Math.max(p[i],p[i+1],p[i+2]));p[i]=rgb[0];p[i+1]=rgb[1];p[i+2]=rgb[2];p[i+3]=v>127?150:0}
+      x.putImageData(d,0,0);o.mask=c}catch(e){o.maskBad=true}res()};
+    im.onerror=()=>{o.maskBad=true;res()};im.src=src;
+  })));
+}
+async function interpret(run){
+  run.objs=(run.rawObjs||[]).map(o=>normObj(o,run.fmt,run.sw,run.sh)).filter(Boolean);
+  await decodeMasks(run);
+}
+
+/* ---------- scoring vs ground truth ---------- */
+const iou=(a,b)=>{const w=Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0])),h=Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1])),i=w*h,u=(a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-i;return u>0?i/u:0};
+function score(run){
+  if(!S.gt.length||run.status!=='done')return null;
+  const G=S.gt.map(g=>g.box);
+  if(S.mode==='point'||run.objs.every(o=>!o.box&&o.point)){
+    const pts=run.objs.map(o=>o.point||(o.box&&[(o.box[0]+o.box[2])/2,(o.box[1]+o.box[3])/2])).filter(Boolean);
+    const used=new Set();let tp=0;
+    pts.forEach(p=>{const gi=G.findIndex((g,i)=>!used.has(i)&&p[0]>=g[0]&&p[0]<=g[2]&&p[1]>=g[1]&&p[1]<=g[3]);if(gi>=0){used.add(gi);tp++}});
+    const P=pts.length?tp/pts.length:0,R=tp/G.length;return{kind:'point',f1:P+R?2*P*R/(P+R):0,tp,np:pts.length,ng:G.length};
+  }
+  const B=run.objs.map(o=>o.box).filter(Boolean),pairs=[];
+  B.forEach((b,i)=>G.forEach((g,j)=>{const v=iou(b,g);if(v>0)pairs.push([v,i,j])}));
+  pairs.sort((a,b)=>b[0]-a[0]);
+  const ub=new Set(),ug=new Set(),best=new Array(G.length).fill(0);let tp=0;
+  pairs.forEach(([v,i,j])=>{if(ub.has(i)||ug.has(j))return;ub.add(i);ug.add(j);best[j]=v;if(v>=.5)tp++});
+  const P=B.length?tp/B.length:0,R=tp/G.length;
+  return{kind:'box',f1:P+R?2*P*R/(P+R):0,miou:best.reduce((a,b)=>a+b,0)/G.length,tp,np:B.length,ng:G.length};
+}
+
+/* ---------- drawing ---------- */
+function alpha(hex,a){const[r,g,b]=hexRgb(hex);return`rgba(${r},${g},${b},${a})`}
+function drawObjs(x,objs,color,W,H,o){
+  const lw=o.lw||2;x.save();x.lineJoin='round';x.lineCap='round';
+  objs.forEach(ob=>{
+    if(ob.mask&&ob.box){const[a,b,c,d]=ob.box;x.drawImage(ob.mask,a*W,b*H,(c-a)*W,(d-b)*H)}
+    if(ob.poly){x.beginPath();ob.poly.forEach((p,i)=>i?x.lineTo(p[0]*W,p[1]*H):x.moveTo(p[0]*W,p[1]*H));x.closePath();x.fillStyle=alpha(color,.3);x.fill();x.strokeStyle='rgba(0,0,0,.45)';x.lineWidth=lw+2;x.stroke();x.strokeStyle=color;x.lineWidth=lw;x.stroke()}
+    else if(ob.box&&!ob.point){
+      const[a,b,c,d]=ob.box,r=[a*W,b*H,(c-a)*W,(d-b)*H];
+      if(ob.mask)x.setLineDash([5,4]);else{x.fillStyle=alpha(color,.1);x.fillRect(...r)}
+      x.strokeStyle='rgba(0,0,0,.45)';x.lineWidth=lw+2;x.strokeRect(...r);x.strokeStyle=color;x.lineWidth=lw;x.strokeRect(...r);x.setLineDash([]);
+    }
+    if(ob.point){const px=ob.point[0]*W,py=ob.point[1]*H,R=Math.max(4,lw*3);
+      x.beginPath();x.arc(px,py,R+2,0,7);x.fillStyle='rgba(0,0,0,.45)';x.fill();
+      x.beginPath();x.arc(px,py,R,0,7);x.fillStyle=color;x.fill();x.lineWidth=2;x.strokeStyle='#fff';x.stroke()}
+  });
+  if(o.hl!=null&&objs[o.hl]){const ob=objs[o.hl];x.save();x.strokeStyle='#fff';x.lineWidth=3;x.shadowColor='rgba(0,0,0,.7)';x.shadowBlur=8;
+    if(ob.poly){x.beginPath();ob.poly.forEach((p,i)=>i?x.lineTo(p[0]*W,p[1]*H):x.moveTo(p[0]*W,p[1]*H));x.closePath();x.stroke()}
+    else if(ob.box&&!ob.point){const[a,b,c,d]=ob.box;x.strokeRect(a*W-2,b*H-2,(c-a)*W+4,(d-b)*H+4)}
+    if(ob.point){x.beginPath();x.arc(ob.point[0]*W,ob.point[1]*H,14,0,7);x.stroke()}
+    x.restore()}
+  if(o.labels){
+    const fs=Math.max(10,Math.min(13,W/85));x.font=`600 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;x.textBaseline='middle';
+    objs.forEach(ob=>{if(!ob.label)return;
+      let ax,ay;if(ob.box&&!ob.point){ax=ob.box[0]*W;ay=ob.box[1]*H}else if(ob.point){ax=ob.point[0]*W+8;ay=ob.point[1]*H-6}else return;
+      const t=ob.label.length>24?ob.label.slice(0,23)+'…':ob.label,tw=x.measureText(t).width+10,th=fs+6;
+      let ty=ay-th;if(ty<0)ty=ay;const tx=Math.min(Math.max(0,ax-(ob.point?0:lw/2)),W-tw);
+      x.fillStyle=color;x.fillRect(tx,ty,tw,th);x.fillStyle='#101512';x.fillText(t,tx+5,ty+th/2+.5);
+    });
+  }
+  x.restore();
+}
+function drawGT(x,W,H,extra){
+  x.save();
+  [...S.gt.map(g=>g.box),...(extra?[extra]:[])].forEach(b=>{const r=[b[0]*W,b[1]*H,(b[2]-b[0])*W,(b[3]-b[1])*H];
+    x.setLineDash([]);x.strokeStyle='rgba(0,0,0,.55)';x.lineWidth=3.5;x.strokeRect(...r);
+    x.setLineDash([6,5]);x.strokeStyle='#fff';x.lineWidth=1.6;x.strokeRect(...r)});
+  x.restore();
+}
+let drag=null;
+function renderStage(){
+  const cv=$('#stage'),mat=$('#mat');
+  if(!S.img){cv.width=0;return}
+  const cs=getComputedStyle(mat),maxW=mat.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),maxH=Math.max(260,Math.min(window.innerHeight*.66,780));
+  const sc=Math.min(maxW/S.img.w,maxH/S.img.h),W=Math.max(1,Math.round(S.img.w*sc)),H=Math.max(1,Math.round(S.img.h*sc)),dpr=window.devicePixelRatio||1;
+  cv.style.width=W+'px';cv.style.height=H+'px';cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.drawImage(S.img.src,0,0,W,H);
+  S.runs.forEach(r=>{if(r.status==='done'&&!S.hidden.has(r.model))drawObjs(x,r.objs,r.color,W,H,{labels:S.labels,lw:2})});
+  if(!S.hidden.has('__gt')||S.gtMode)drawGT(x,W,H,drag&&drag.box);
+  S.stageWH=[W,H];
+  $('#r1').textContent=`${S.img.name} · ${S.img.w} × ${S.img.h} px`;
+  $('#r2').textContent=S.lastSend?`送信 ${S.lastSend.sw} × ${S.lastSend.sh} px`:'';
+}
+function renderLegend(){
+  const el=$('#legend');el.innerHTML='';
+  const mk=(key,label,color,cls)=>{const b=document.createElement('button');b.className='lg'+(cls?' '+cls:'')+(S.hidden.has(key)?' off':'');b.style.setProperty('--c',color);b.innerHTML=`<i></i>${esc(label)}`;b.title='クリックで表示切替 · ダブルクリックでこれだけ表示';
+    b.onclick=()=>{S.hidden.has(key)?S.hidden.delete(key):S.hidden.add(key);renderLegend();renderStage()};
+    b.ondblclick=()=>{S.hidden.clear();S.runs.forEach(r=>r.model!==key&&S.hidden.add(r.model));if(key!=='__gt')S.hidden.add('__gt');renderLegend();renderStage()};
+    el.appendChild(b)};
+  S.runs.forEach(r=>mk(r.model,shortName(r.model),r.color));
+  if(S.gt.length)mk('__gt',`正解 ${S.gt.length}`,'#fff','gt');
+  $('#labelsBtn').classList.toggle('on',S.labels);
+  $('#gtBtn').classList.toggle('on',S.gtMode);
+}
+$('#labelsBtn').onclick=()=>{S.labels=!S.labels;LS.set('labels',S.labels);renderLegend();renderStage()};
+function toggleGt(v){S.gtMode=v;$('#mat').classList.toggle('draw',v);$('#drawTip').hidden=!v;if(v)S.hidden.delete('__gt');renderLegend();renderStage()}
+$('#gtBtn').onclick=()=>toggleGt(!S.gtMode);
+
+/* GT drawing */
+const stage=$('#stage');
+function evPos(e){const r=stage.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]}
+stage.addEventListener('pointerdown',e=>{if(!S.gtMode||!S.img)return;stage.setPointerCapture(e.pointerId);const p=evPos(e);drag={p0:p,box:null}});
+stage.addEventListener('pointermove',e=>{if(!drag)return;const p=evPos(e),q=drag.p0;drag.box=[Math.min(p[0],q[0]),Math.min(p[1],q[1]),Math.max(p[0],q[0]),Math.max(p[1],q[1])];renderStage()});
+stage.addEventListener('pointerup',e=>{
+  if(!drag)return;const b=drag.box,p=evPos(e);drag=null;
+  if(b&&(b[2]-b[0])>.006&&(b[3]-b[1])>.006){S.gt.push({box:b,label:$('#target').value.trim()||'gt'})}
+  else{const i=S.gt.findLastIndex(g=>p[0]>=g.box[0]&&p[0]<=g.box[2]&&p[1]>=g.box[1]&&p[1]<=g.box[3]);if(i>=0)S.gt.splice(i,1)}
+  if(S.test){S.preset=null;[...$('#presets').children].forEach(x=>x.classList.remove('on'))}
+  renderAll();
+});
+
+/* ---------- cards & board ---------- */
+function renderCards(){
+  const el=$('#cards');el.innerHTML='';
+  if(!S.runs.length){el.innerHTML='<div class="empty">モデルごとの結果がここに並ぶ。座標がズレていたら、カード下の「座標」を切り替えると再解釈できる。</div>';return}
+  S.runs.forEach(run=>{
+    const c=document.createElement('article');c.className='card';c.style.setProperty('--c',run.color);
+    const sup=structuredSupport(run.model);
+    c.innerHTML=`<header><i></i><div class="mn"><b>${esc(shortName(run.model))}</b><small>${esc(run.model)}</small></div><button class="ic" data-a="retry" title="このモデルだけ再実行">↻</button></header>
+      <div class="view" tabindex="0" aria-label="このモデルの結果を拡大"><canvas></canvas><span class="zhint">クリックで拡大</span><div class="scan" hidden><i></i><span>0.0s</span></div><div class="errbox" hidden></div></div>
+      <dl class="stats"><div><dt>時間</dt><dd data-k="t">—</dd></div><div><dt>コスト</dt><dd data-k="c">—</dd></div><div><dt>入/出 tok</dt><dd data-k="k">—</dd></div><div><dt data-k="sl">検出</dt><dd data-k="n">—</dd></div></dl>
+      <footer><label>座標 <select data-a="fmt">${Object.entries(FMT_NAME).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label><span class="pill" data-k="path"></span><span class="pill fix" data-k="fix" hidden>0–1に補正</span><button class="btn small sp" data-a="raw">生データ</button></footer>
+      <pre class="raw" hidden></pre>`;
+    c.querySelector('[data-a=retry]').onclick=()=>retry(run);
+    const v=c.querySelector('.view');v.onclick=()=>run.status!=='running'&&run.status!=='queued'&&openModal(run);
+    v.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();v.click()}};
+    c.querySelector('[data-a=raw]').onclick=()=>{const p=c.querySelector('.raw');p.hidden=!p.hidden};
+    c.querySelector('[data-a=fmt]').onchange=async e=>{run.fmt=e.target.value;run.fmtFixed=false;await interpret(run);updateCard(run);renderStage();renderBoard()};
+    run.el=c;el.appendChild(c);updateCard(run);
+  });
+}
+function updateCard(run){
+  const c=run.el;if(!c)return;const q=k=>c.querySelector(`[data-k=${k}]`);
+  const scan=c.querySelector('.scan'),err=c.querySelector('.errbox');
+  scan.hidden=run.status!=='running';err.hidden=run.status!=='error';
+  if(run.status==='error')err.textContent=run.error;
+  q('t').textContent=run.status==='running'?'…':secs(run.ms)+(run.retried?' ↺':'');
+  q('c').innerHTML=run.cost==null?'—':(run.costEst?'<small>≈</small>':'')+money(run.cost);
+  const u=run.usage||{},rt=u.completion_tokens_details?.reasoning_tokens;
+  q('k').innerHTML=u.prompt_tokens==null?'—':`${fmtTok(u.prompt_tokens)}/${fmtTok(u.completion_tokens)}${rt?` <small>思考${fmtTok(rt)}</small>`:''}`;
+  const sc=score(run);
+  q('sl').textContent=sc?(sc.kind==='point'?'命中':'F1 / IoU'):'検出';
+  q('n').innerHTML=run.status!=='done'?'—':sc?(sc.kind==='point'?`${sc.tp}/${sc.ng} <small>${sc.f1.toFixed(2)}</small>`:`${sc.f1.toFixed(2)}<small>/${sc.miou.toFixed(2)}</small>`):`${run.objs.length}<small>個</small>`;
+  c.querySelector('[data-a=fmt]').value=run.fmt;
+  q('path').textContent=run.path?({schema:'schema',json:'json mode',prompt:'prompt'}[run.path])+(run.finish==='length'?' · 途中切れ':''):'';
+  q('path').className='pill'+(run.path==='schema'?' schema':'');q('path').hidden=!run.path;
+  q('fix').hidden=!run.fmtFixed;
+  c.querySelector('.raw').textContent=run.raw!=null?run.raw:(run.errRaw||'');
+  c.querySelector('.view').classList.toggle('zoom',run.status==='done'||run.status==='error');
+  drawCard(run);
+  if(M.run===run&&!$('#modal').hidden)renderModal();
+}
+function drawCard(run){
+  const c=run.el;if(!c||!S.img)return;const cv=c.querySelector('canvas'),W=c.clientWidth||300,H=Math.round(W*S.img.h/S.img.w),dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.drawImage(S.img.src,0,0,W,H);
+  if(S.gt.length)drawGT(x,W,H);
+  if(run.status==='done')drawObjs(x,run.objs,run.color,W,H,{labels:false,lw:1.6});
+}
+function renderBoard(){
+  const el=$('#board');
+  const done=S.runs.filter(r=>r.status==='done');
+  if(!S.runs.length){el.innerHTML=`<div class="empty">${S.gt.length?`正解 ${S.gt.length}個。計測すると、各モデルの時間・コスト・正解との一致（F1@IoU0.5 / mIoU）がここに並ぶ。`:'計測すると、各モデルの時間・コスト・検出数がここに並ぶ。「正解を描く」で正解枠を入れると精度も出る。'}</div>`;return}
+  const maxT=Math.max(...S.runs.map(r=>r.ms||0),1),maxC=Math.max(...S.runs.map(r=>r.cost||0),1e-9);
+  const ok=done.filter(r=>r.ms!=null);
+  const fastest=ok.length>1?ok.reduce((a,b)=>a.ms<b.ms?a:b):null;
+  const withC=ok.filter(r=>r.cost!=null);const cheapest=withC.length>1?withC.reduce((a,b)=>a.cost<b.cost?a:b):null;
+  const scored=ok.map(r=>[r,score(r)]).filter(x=>x[1]);const bestS=scored.length>1?scored.reduce((a,b)=>(b[1].f1+(b[1].miou||0)*.01)>(a[1].f1+(a[1].miou||0)*.01)?b:a)[0]:null;
+  let h=`<div class="brow head"><span>モデル</span><span>時間</span><span>コスト</span><span>検出</span><span>${S.gt.length?'正解との一致':'状態'}</span></div>`;
+  S.runs.forEach(r=>{
+    const sc=score(r);
+    const st=r.status==='running'?'<span style="color:var(--muted)">計測中…</span>':r.status==='error'?`<span style="color:var(--bad)">エラー</span>`:sc?(sc.kind==='point'?`<span class="mono">命中 ${sc.tp}/${sc.ng} · F1 ${sc.f1.toFixed(2)}</span>`:`<span class="mono">F1 ${sc.f1.toFixed(2)} · IoU ${sc.miou.toFixed(2)}</span>`):r.status==='done'?'<span style="color:var(--muted)">完了</span>':'';
+    h+=`<div class="brow" style="--c:${r.color}"><span class="nm"><i></i><span>${esc(shortName(r.model))}</span></span>
+      <span class="bar"><u><b style="width:${r.ms?Math.max(2,r.ms/maxT*100):0}%"></b></u><span>${r.status==='running'?'…':secs(r.ms)}${r===fastest?'<span class="tag">最速</span>':''}</span></span>
+      <span class="bar"><u><b style="width:${r.cost?Math.max(2,r.cost/maxC*100):0}%"></b></u><span>${money(r.cost)}${r===cheapest?'<span class="tag">最安</span>':''}</span></span>
+      <span class="mono">${r.status==='done'?r.objs.length:'—'}</span>
+      <span>${st}${r===bestS?'<span class="tag">ベスト</span>':''}</span></div>`;
+  });
+  el.innerHTML=h;
+}
+function renderAll(){renderLegend();renderStage();renderBoard();if(!S.runs.length)renderCards();else S.runs.forEach(updateCard);updateHint()}
+
+/* ---------- running ---------- */
+function prepareSend(){
+  const{src,w,h}=S.img,lim=+S.settings.size,sc=lim?Math.min(1,lim/Math.max(w,h)):1,sw=Math.round(w*sc),sh=Math.round(h*sc);
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,sw,sh);x.drawImage(src,0,0,sw,sh);
+  return{url:c.toDataURL('image/jpeg',.92),sw,sh};
+}
+async function callOR(body,signal){
+  const r=await fetch(API+'/chat/completions',{method:'POST',signal,headers:{'Authorization':'Bearer '+S.key,'Content-Type':'application/json','X-Title':'Grounding Bench'},body:JSON.stringify(body)});
+  const txt=await r.text();let j=null;try{j=JSON.parse(txt)}catch(e){}
+  const err=j?.error||j?.choices?.[0]?.error;
+  return{ok:r.ok&&!err,status:r.status,j,txt,err};
+}
+function errText(res){
+  const m=res.err?.message||res.err?.metadata?.raw||res.txt?.slice(0,300)||'';
+  const s=res.status;
+  if(s===401)return'APIキーが無効（401）';
+  if(s===402)return'クレジット不足（402）';
+  if(s===429)return'レート制限（429）。少し待って ↻';
+  if(s===404)return'モデルが見つからない、または画像入力に未対応（404）\n'+m;
+  return`エラー ${s||''}\n${m}`;
+}
+function estimate(id,u){const p=S.catalog.get(id)?.pricing;if(!p||u.prompt_tokens==null)return null;const a=parseFloat(p.prompt),b=parseFloat(p.completion);if(isNaN(a)||isNaN(b))return null;return a*u.prompt_tokens+b*(u.completion_tokens||0)}
+async function runOne(run){
+  const{model:id}=run,send=run.send,q=run.query;
+  let path=S.settings.structured==='off'?'prompt':(structuredSupport(id)||'schema');
+  run.fmt=S.settings.fmt==='auto'?autoFmt(id):S.settings.fmt;run.reqFmt=run.fmt;run.sw=send.sw;run.sh=send.sh;
+  const prompt=buildPrompt(q.mode,run.fmt,q.target,send.sw,send.sh);
+  const maxTok=+S.settings.maxTok||{box:4096,point:2048,polygon:8192,mask:16384}[q.mode];
+  const mk=(p,bare)=>{const b={model:id,messages:[{role:'system',content:SYS},{role:'user',content:[{type:'image_url',image_url:{url:send.url}},{type:'text',text:prompt}]}],max_tokens:maxTok,usage:{include:true}};if(S.settings.temp!=null)b.temperature=S.settings.temp;
+    if(p==='schema')b.response_format={type:'json_schema',json_schema:schemaFor(q.mode)};
+    if(p==='json')b.response_format={type:'json_object'};
+    if(!bare&&S.settings.reasoning!=='default')b.reasoning={effort:S.settings.reasoning};
+    return b};
+  Object.assign(run,{status:'running',ms:null,cost:null,costEst:false,usage:null,raw:null,errRaw:null,objs:[],path:null,finish:null,retried:false,fmtFixed:false,error:null});
+  run.ctrl=new AbortController();S.runningCount++;updateHint();updateCard(run);renderBoard();
+  const t0=performance.now(),clock=run.el?.querySelector('.scan span');
+  const tick=setInterval(()=>{if(clock)clock.textContent=((performance.now()-t0)/1000).toFixed(1)+'s'},100);
+  try{
+    let res=await callOR(mk(path),run.ctrl.signal);
+    if(!res.ok&&[400,404,422].includes(res.status)&&(path!=='prompt'||S.settings.reasoning!=='default')){run.retried=true;path='prompt';res=await callOR(mk('prompt',true),run.ctrl.signal)}
+    run.ms=performance.now()-t0;
+    if(!res.ok){run.status='error';run.error=errText(res);run.errRaw=res.txt;return}
+    const ch=res.j.choices?.[0]||{},msg=ch.message||{};
+    let content=typeof msg.content==='string'?msg.content:Array.isArray(msg.content)?msg.content.map(p=>p.text||'').join(''):'';
+    if(!content&&msg.parsed)content=JSON.stringify(msg.parsed);
+    Object.assign(run,{raw:content,finish:ch.finish_reason||ch.native_finish_reason,provider:res.j.provider,usage:res.j.usage||{},path});
+    if(typeof run.usage.cost==='number')run.cost=run.usage.cost;else{run.cost=estimate(id,run.usage);run.costEst=run.cost!=null}
+    if(run.cost!=null){S.tally.cost+=run.cost}S.tally.n++;LS.set('tally',S.tally);renderTally();
+    const data=extractJSON(content);run.rawObjs=data==null?null:toList(data);
+    if(run.rawObjs==null){run.status='error';run.error=run.finish==='length'?'出力が max tokens で途中切れ。詳細設定で増やして ↻':'JSONとして読めなかった。「生データ」で中身を確認できる';return}
+    const nums=allCoords(run.rawObjs);
+    if(run.fmt!=='unit'&&nums.length&&Math.max(...nums.map(Math.abs))<=1.0001){run.fmt='unit';run.fmtFixed=true}
+    await interpret(run);run.status='done';
+  }catch(e){
+    run.ms=performance.now()-t0;run.status='error';
+    run.error=e.name==='AbortError'?'中止した':'通信エラー: '+e.message;
+  }finally{
+    clearInterval(tick);S.runningCount--;updateHint();setRunBtn();updateCard(run);renderBoard();renderLegend();renderStage();
+  }
+}
+function setRunBtn(){const r=S.runningCount>0;$('#run').classList.toggle('stop',r);$('#runLabel').textContent=r?'止める':'計測する';$('#runKbd').hidden=r;updateHint()}
+function abortAll(){S.runs.forEach(r=>r.ctrl&&r.status==='running'&&r.ctrl.abort())}
+function startRuns(){
+  if(S.runningCount>0){abortAll();return}
+  const r=blockReason();if(r){flashHint(r);return}
+  if(S.gtMode)toggleGt(false);
+  const send=prepareSend(),query={target:$('#target').value.trim(),mode:S.mode};
+  S.lastSend=send;S.lastQuery=query;S.hidden.delete('__gt');
+  S.runs=S.models.map(id=>({model:id,color:colorOf(id),status:'queued',objs:[],send,query}));
+  renderCards();renderLegend();renderStage();
+  S.runs.forEach(run=>runOne(run));setRunBtn();
+}
+function retry(run){
+  if(run.status==='running'){run.ctrl.abort();return}
+  if(!S.key){flashHint(blockReason());return}
+  runOne(run).then(setRunBtn);setRunBtn();
+}
+$('#run').onclick=startRuns;
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();startRuns()}});
+
+/* ---------- export ---------- */
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+const stamp=()=>new Date().toISOString().replace(/[:T]/g,'-').slice(0,19);
+$('#pngBtn').onclick=()=>{
+  if(!S.img)return;const W=S.img.w,H=S.img.h,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(S.img.src,0,0);
+  if(!S.hidden.has('__gt'))drawGT(x,W,H);
+  S.runs.forEach(r=>{if(r.status==='done'&&!S.hidden.has(r.model))drawObjs(x,r.objs,r.color,W,H,{labels:S.labels,lw:Math.max(2,W/500)})});
+  c.toBlob(b=>download(b,`grounding-${stamp()}.png`));
+};
+$('#jsonBtn').onclick=()=>{
+  if(!S.runs.length){flashHint('書き出す結果がまだない');return}
+  const r4=v=>Math.round(v*1e4)/1e4;
+  const out={tool:'Grounding Bench',at:new Date().toISOString(),image:{name:S.img.name,width:S.img.w,height:S.img.h,sent:S.lastSend&&{width:S.lastSend.sw,height:S.lastSend.sh}},query:S.lastQuery,settings:S.settings,
+    groundTruth:S.gt.map(g=>({label:g.label,box:g.box.map(r4)})),
+    runs:S.runs.map(r=>({model:r.model,status:r.status,error:r.error||undefined,ms:r.ms&&Math.round(r.ms),cost:r.cost,costEstimated:r.costEst||undefined,usage:r.usage,provider:r.provider,structured:r.path,requestedFormat:r.reqFmt,interpretedFormat:r.fmt,finish:r.finish,score:score(r)||undefined,
+      objects:(r.objs||[]).map(o=>({label:o.label,box:o.box&&o.box.map(r4),point:o.point&&o.point.map(r4),polygon:o.poly&&o.poly.map(p=>p.map(r4)),hasMask:!!o.mask||undefined})),raw:r.raw}))};
+  download(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}),`grounding-${stamp()}.json`);
+};
+
+/* ---------- modal ---------- */
+const M={run:null,labels:true,gt:true,hl:null};
+function openModal(run){M.run=run;M.hl=null;$('#modal').hidden=false;document.body.style.overflow='hidden';renderModal();$('#mClose').focus()}
+function closeModal(){const r=M.run;$('#modal').hidden=true;document.body.style.overflow='';M.run=null;r?.el?.querySelector('.view')?.focus()}
+function stepModal(d){const L=S.runs.filter(r=>r.status==='done'||r.status==='error');if(L.length<2)return;const i=L.indexOf(M.run);M.run=L[(i+d+L.length)%L.length];M.hl=null;renderModal()}
+function bestIou(b){return S.gt.length&&b?Math.max(0,...S.gt.map(g=>iou(b,g.box))):null}
+function drawModal(){
+  const run=M.run,st=$('#mStage'),cv=$('#mCanvas');if(!run||!S.img)return;
+  const pad=window.innerWidth<600?12:56,mw=st.clientWidth-pad*2,mh=st.clientHeight-28;
+  const sc=Math.min(mw/S.img.w,mh/S.img.h),W=Math.max(1,Math.round(S.img.w*sc)),H=Math.max(1,Math.round(S.img.h*sc)),dpr=window.devicePixelRatio||1;
+  cv.style.width=W+'px';cv.style.height=H+'px';cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.drawImage(S.img.src,0,0,W,H);
+  if(M.gt&&S.gt.length)drawGT(x,W,H);
+  if(run.status==='done')drawObjs(x,run.objs,run.color,W,H,{labels:M.labels,lw:2.2,hl:M.hl});
+}
+function renderModal(){
+  const run=M.run;if(!run)return;
+  $('.mbox').style.setProperty('--c',run.color);
+  $('#mName').textContent=shortName(run.model);
+  $('#mId').textContent=run.model+(run.provider?' · via '+run.provider:'');
+  const u=run.usage||{},sc=score(run);
+  const cells=[['時間',secs(run.ms)+(run.retried?' ↺':'')],['コスト',(run.costEst?'≈':'')+money(run.cost)],['入/出 tok',u.prompt_tokens==null?'—':fmtTok(u.prompt_tokens)+'/'+fmtTok(u.completion_tokens)],['検出',run.status==='done'?run.objs.length+'個':'—'],['座標',FMT_NAME[run.fmt]||'—'],['出力',run.path||'—']];
+  if(sc)cells.splice(4,0,sc.kind==='point'?['命中',`${sc.tp}/${sc.ng}`]:['F1 / IoU',`${sc.f1.toFixed(2)} / ${sc.miou.toFixed(2)}`]);
+  $('#mStats').innerHTML=cells.map(([k,v])=>`<span><em>${k}</em>${esc(v)}</span>`).join('');
+  $('#mLabels').classList.toggle('on',M.labels);$('#mGt').classList.toggle('on',M.gt);$('#mGt').hidden=!S.gt.length;
+  const many=S.runs.filter(r=>r.status==='done'||r.status==='error').length>1;$('#mPrev').hidden=$('#mNext').hidden=!many;
+  const L=$('#mList');
+  if(run.status==='error'){L.innerHTML=`<h3>エラー</h3><div class="none" style="color:var(--bad);white-space:pre-wrap">${esc(run.error)}</div><pre>${esc(run.raw??run.errRaw??'')}</pre>`}
+  else if(!run.objs.length){L.innerHTML=`<h3>検出結果</h3><div class="none">何も検出されなかった</div><pre>${esc(run.raw??'')}</pre>`}
+  else{
+    L.innerHTML=`<h3>検出結果 ${run.objs.length}個${S.gt.length?' · 正解とのIoU':''}</h3>`+run.objs.map((o,i)=>{
+      const b=o.box,v=bestIou(b??(o.point&&[o.point[0],o.point[1],o.point[0],o.point[1]]));
+      const inGt=o.point&&!b&&S.gt.some(g=>o.point[0]>=g.box[0]&&o.point[0]<=g.box[2]&&o.point[1]>=g.box[1]&&o.point[1]<=g.box[3]);
+      const badge=!S.gt.length?'':o.point&&!b?`<span class="iou ${inGt?'hit':'miss'}">${inGt?'命中':'外'}</span>`:`<span class="iou ${v>=.5?'hit':'miss'}">${v.toFixed(2)}</span>`;
+      const pos=b?`x ${(b[0]*100).toFixed(1)}–${(b[2]*100).toFixed(1)}%  y ${(b[1]*100).toFixed(1)}–${(b[3]*100).toFixed(1)}%`:o.point?`(${(o.point[0]*100).toFixed(1)}%, ${(o.point[1]*100).toFixed(1)}%)`:'';
+      return `<div class="obj${M.hl===i?' hl':''}" data-i="${i}"><span class="no">${i+1}</span><b>${esc(o.label||'(ラベルなし)')}</b>${badge}<small>${pos}${o.poly?` · ${o.poly.length}点`:''}${o.maskBad?' · マスク読込失敗':''}</small></div>`}).join('');
+  }
+  drawModal();
+}
+$('#mList').addEventListener('mouseover',e=>{const o=e.target.closest('.obj');const i=o?+o.dataset.i:null;if(i!==M.hl){M.hl=i;[...$('#mList').querySelectorAll('.obj')].forEach(el=>el.classList.toggle('hl',+el.dataset.i===i));drawModal()}});
+$('#mList').addEventListener('mouseleave',()=>{if(M.hl!=null){M.hl=null;$('#mList').querySelectorAll('.obj.hl').forEach(el=>el.classList.remove('hl'));drawModal()}});
+$('#mCanvas').addEventListener('pointermove',e=>{
+  const run=M.run;if(!run||run.status!=='done')return;const r=e.currentTarget.getBoundingClientRect(),px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height;
+  let best=null,ba=Infinity;run.objs.forEach((o,i)=>{if(o.box&&px>=o.box[0]&&px<=o.box[2]&&py>=o.box[1]&&py<=o.box[3]){const a=(o.box[2]-o.box[0])*(o.box[3]-o.box[1]);if(a<ba){ba=a;best=i}}else if(o.point&&Math.hypot(o.point[0]-px,(o.point[1]-py)*S.img.h/S.img.w)<.02){best=i;ba=0}});
+  if(best!==M.hl){M.hl=best;$('#mList').querySelectorAll('.obj').forEach(el=>el.classList.toggle('hl',+el.dataset.i===best));const t=$('#mList').querySelector('.obj.hl');t?.scrollIntoView({block:'nearest'});drawModal()}
+});
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+$('#mClose').onclick=closeModal;
+$('#mPrev').onclick=()=>stepModal(-1);$('#mNext').onclick=()=>stepModal(1);
+$('#mLabels').onclick=()=>{M.labels=!M.labels;renderModal()};
+$('#mGt').onclick=()=>{M.gt=!M.gt;renderModal()};
+document.addEventListener('keydown',e=>{if($('#modal').hidden)return;if(e.key==='ArrowLeft')stepModal(-1);else if(e.key==='ArrowRight')stepModal(1);else if(e.key==='Tab'){const f=[...$('#modal').querySelectorAll('button:not([hidden])')];const i=f.indexOf(document.activeElement);if(e.shiftKey&&i<=0){e.preventDefault();f[f.length-1].focus()}else if(!e.shiftKey&&i===f.length-1){e.preventDefault();f[0].focus()}}});
+let mrz;new ResizeObserver(()=>{if($('#modal').hidden)return;clearTimeout(mrz);mrz=setTimeout(drawModal,40)}).observe($('#mStage'));
+
+/* ---------- boot ---------- */
+let rz;new ResizeObserver(()=>{clearTimeout(rz);rz=setTimeout(()=>{renderStage();S.runs.forEach(drawCard)},60)}).observe($('#mat'));
+renderKey();renderTally();renderMode();
+S.models=S.models||[];renderChips();if(!LS.get('models',null))S.models=null;
+loadCatalog();
+useTestBoard(7);
+</script>
+</body>
+</html>
